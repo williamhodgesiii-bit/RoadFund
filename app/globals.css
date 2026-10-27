@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/*
+  Road Fund palette (contrast checked against WCAG AA):
+  white on pine 7.7:1 · charcoal on paper 14.5:1 · charcoal on yellow 7.9:1
+  white on brick 6.5:1 · lake on white 6.9:1 · stone on paper 5.8:1 · field border on white 4.0:1
+*/
+@theme {
+  --color-pine: #1f5e3b;
+  --color-pine-dark: #174a2e;
+  --color-pine-50: #e6efe9;
+  --color-pine-100: #cfe0d5;
+  --color-charcoal: #1e2320;
+  --color-paper: #f6f4ef;
+  --color-paper-2: #eeebe3;
+  --color-sign: #f2a900;
+  --color-sign-50: #fdf3d6;
+  --color-sign-ink: #6b4a00;
+  --color-brick: #b3261e;
+  --color-brick-50: #f9e5e3;
+  --color-lake: #2f5d8a;
+  --color-lake-50: #e5edf5;
+  --color-stone: #5c6159;
+  --color-line: #dcd8ce;
+  --color-field: #857f72;
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-heading), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(30 35 32 / 0.06), 0 1px 1px rgb(30 35 32 / 0.04);
+  --shadow-lift: 0 10px 30px -12px rgb(30 35 32 / 0.25);
+
+  --animate-rise: rise 0.25s ease-out both;
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+:root {
+  color-scheme: light;
+  --app-font-size: 18px;
+}
+:root[data-text="large"] {
+  --app-font-size: 21px;
+}
+
+html {
+  font-size: var(--app-font-size);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-charcoal);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+p { text-wrap: pretty; }
+
+/* Grid items default to min-width:auto and can blow out a track on phones; let them shrink. */
+.grid > * { min-width: 0; }
+
+:focus-visible {
+  outline: 3px solid var(--color-lake);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Amounts use the road-sign face: clean, unslashed figures that line up in columns. */
+.tnum { font-variant-numeric: tabular-nums; font-family: var(--font-display); }
+
+::selection { background: var(--color-sign-50); }
+
+dialog::backdrop { background: rgb(30 35 32 / 0.5); }
+dialog[open] { animation: rise 0.2s ease-out both; }
+
+/* Road-sign style label: yellow diamond-inspired chip */
+.sign-chip {
+  background: var(--color-sign);
+  color: var(--color-charcoal);
+}
+
+/* Subtle gravel texture for hero bands */
+.gravel {
+  background-color: var(--color-paper);
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(30 35 32 / 0.035) 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 60%, rgb(30 35 32 / 0.03) 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 80%, rgb(30 35 32 / 0.025) 1.2px, transparent 1.6px);
+  background-size: 22px 22px, 31px 31px, 27px 27px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  @page { margin: 0.6in; }
+}
+.print-only { display: none; }
+
+/* Leaflet: keep controls readable and above the map */
+.leaflet-container { font: inherit; background: var(--color-paper-2); }
+.leaflet-control-attribution { font-size: 11px; }
+.rf-pin { background: transparent; border: 0; }
