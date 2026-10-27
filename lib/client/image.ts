@@ -22,4 +22,3 @@ export async function shrinkImage(file: File | Blob, maxSide = 1400, quality = 0
   return blob && blob.size < file.size ? blob : file;
 }
 
-export const ACCEPT_UPLOADS = "image/jpeg,image/png,image/webp,application/pdf";

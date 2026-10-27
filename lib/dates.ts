@@ -22,10 +22,6 @@ export function addDays(date: ISODate, days: number): ISODate {
   return isoDate(d);
 }
 
-export function addTimeDays(at: ISOTime, days: number): ISOTime {
-  return new Date(new Date(at).getTime() + days * MS_DAY).toISOString();
-}
-
 /** Adds business days (Mon–Fri) to a timestamp. ACH settles on business days. */
 export function addBusinessDays(at: ISOTime, days: number): ISOTime {
   const d = new Date(at);
@@ -80,19 +76,3 @@ export function fmtDateTime(value: ISOTime): string {
   return `${fmtShortYear.format(d)}, ${fmtTime.format(d)}`;
 }
 
-/** "in 3 days", "today", "2 days ago" */
-export function relativeDays(date: ISODate, today: ISODate = isoDate()): string {
-  const n = daysBetween(today, date);
-  if (n === 0) return "today";
-  if (n === 1) return "tomorrow";
-  if (n === -1) return "yesterday";
-  return n > 0 ? `in ${n} days` : `${-n} days ago`;
-}
-
-export function seasonLabel(d: Date = new Date()): string {
-  const m = d.getMonth();
-  if (m <= 1 || m === 11) return "winter";
-  if (m <= 4) return "spring";
-  if (m <= 7) return "summer";
-  return "fall";
-}

@@ -8,3 +8,7 @@ out
 next-env.d.ts
 .DS_Store
 npm-debug.log*
+
+# Strategy research (kept out of the app)
+research_notes/
+reports/

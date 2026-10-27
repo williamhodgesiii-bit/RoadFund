@@ -61,16 +61,6 @@ export function accountSummary(road: Road, now: Date): AccountSummary {
 
 export type LineStatus = "paid" | "processing" | "partial" | "plan" | "due" | "late" | "none";
 
-export const STATUS_TEXT: Record<LineStatus, string> = {
-  paid: "Paid",
-  processing: "Paid, processing",
-  partial: "Partly paid",
-  plan: "On a payment plan",
-  due: "Not paid yet",
-  late: "Late",
-  none: "No bill",
-};
-
 export interface LineProgress {
   home: Home;
   due: number;

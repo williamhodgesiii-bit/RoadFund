@@ -19,7 +19,6 @@ const TW_BASE = process.env.TWILIO_API_BASE ?? "https://api.twilio.com";
 
 export const emailEnabled = Boolean(RESEND_KEY && EMAIL_FROM);
 export const smsEnabled = Boolean(TW_SID && TW_TOKEN && (TW_FROM || TW_SERVICE) && kvEnabled);
-export const twilioAuthToken = TW_TOKEN;
 
 export interface Email {
   to: string;

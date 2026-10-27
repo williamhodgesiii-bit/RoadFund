@@ -237,6 +237,3 @@ export function usesBase(settings: SplitSettings): boolean {
   return (settings.method === "frontage" || settings.method === "distance" || settings.method === "segment") && settings.basePct > 0;
 }
 
-export function describeTotal(total: number, homes: number): string {
-  return `${money(total)} across ${homes} home${homes === 1 ? "" : "s"}`;
-}

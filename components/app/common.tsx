@@ -320,16 +320,3 @@ export function useAiOn(): boolean {
   const { status, road } = useRoad();
   return status.ai && hasPlan(road.plan, "roadfund");
 }
-
-export function DefinitionRows({ rows }: { rows: [React.ReactNode, React.ReactNode][] }) {
-  return (
-    <dl className="divide-y divide-line">
-      {rows.map(([k, v], i) => (
-        <div key={i} className="flex justify-between gap-4 px-5 py-2.5">
-          <dt className="text-stone">{k}</dt>
-          <dd className="text-right font-semibold">{v}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}

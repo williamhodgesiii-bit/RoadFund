@@ -365,19 +365,3 @@ export function Dialog({
     </dialog>
   );
 }
-
-export function SectionTitle({ children, action, sub }: { children: ReactNode; action?: ReactNode; sub?: ReactNode }) {
-  return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h2 className="text-[1.3rem] font-extrabold">{children}</h2>
-        {sub && <p className="text-stone">{sub}</p>}
-      </div>
-      {action}
-    </div>
-  );
-}
-
-export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="rounded border border-line bg-paper-2 px-1.5 py-0.5 font-mono text-[0.8em]">{children}</kbd>;
-}
