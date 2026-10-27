@@ -62,7 +62,7 @@ export default function LedgerPage() {
         {rows.length === 0 ? (
           <Empty title="Nothing here yet">Payments and paid bills show up here automatically.</Empty>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ledger">
             <table className="w-full min-w-[640px] text-left">
               <caption className="sr-only">Ledger</caption>
               <thead className="border-b border-line bg-paper text-[0.88rem] text-stone">

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"lib/**/*.test.ts\""
+    "test": "node --conditions=react-server --test \"lib/**/*.test.ts\""
   },
   "engines": {
     "node": "22.x"

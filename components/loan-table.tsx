@@ -10,7 +10,7 @@ const ICON: Record<LoanRule["needsAgreement"], React.ReactNode> = {
 
 export function LoanTable() {
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-white">
+    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-white" tabIndex={0} role="region" aria-label="Loan types and road requirements">
       <table className="w-full min-w-[640px] border-collapse text-left">
         <caption className="sr-only">Which mortgage types require a private road maintenance agreement, October 2026</caption>
         <thead className="bg-paper">

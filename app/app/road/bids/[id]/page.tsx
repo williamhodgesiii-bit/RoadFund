@@ -93,7 +93,7 @@ export default function BidPage() {
           </Empty>
         </Card>
       ) : (
-        <Card className="mb-5 overflow-x-auto">
+        <Card className="mb-5 overflow-x-auto" tabIndex={0} role="region" aria-label="Quotes side by side">
           <table className="w-full min-w-[640px] text-left">
             <thead className="border-b border-line bg-paper text-[0.88rem] text-stone">
               <tr>

@@ -64,6 +64,8 @@ export default function HomePage() {
         )}
       </Card>
 
+      {!entry.demo && <GettingStarted />}
+
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
         {/* Who has paid */}
         <Card>
@@ -200,6 +202,70 @@ function buttonText(id: string): string {
   if (id === "sign") return "Send signing links";
   if (id.startsWith("dmg-")) return "Open the work log";
   return "Go";
+}
+
+/** First-weeks checklist. Hides itself once everything is done, or when dismissed. */
+function GettingStarted() {
+  const { road, entry, now } = useRoad();
+  const key = `rf:checklist:${road.id}`;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "hide";
+    } catch {
+      return false;
+    }
+  });
+  const me = captainHome(road);
+  const unreachable = road.homes.filter((h) => !h.phone && !h.email).length;
+  const year = now.getFullYear();
+  const items = [
+    { done: true, label: "Set up the road and its homes", href: "/app/neighbors" },
+    {
+      done: unreachable === 0,
+      label: unreachable ? `Add a phone or email for ${unreachable} home${unreachable === 1 ? "" : "s"}` : "Every home has a phone or email",
+      href: "/app/neighbors",
+    },
+    ...(entry.where === "cloud" ? [{ done: !!me?.email, label: "Add your email so you can sign in on any device", href: "/app/settings" }] : []),
+    { done: road.account.status === "connected", label: "Connect the road's bank account", href: "/app/money/account" },
+    { done: road.requests.some((r) => r.sentAt && new Date(r.createdAt).getFullYear() === year), label: `Send ${year} dues`, href: "/app/money" },
+    { done: road.contractors.length > 0, label: "Add your plow driver and grader", href: "/app/road/contractors" },
+    { done: road.agreement.step !== "draft", label: "Read the draft road agreement", href: "/app/papers/agreement" },
+  ];
+  const done = items.filter((i) => i.done).length;
+  if (hidden || done === items.length) return null;
+  return (
+    <Card>
+      <CardHeader
+        title="Getting started"
+        icon={<ListChecks className="h-5 w-5" aria-hidden />}
+        sub={`${done} of ${items.length} done`}
+        action={
+          <button
+            onClick={() => {
+              try {
+                localStorage.setItem(key, "hide");
+              } catch {}
+              setHidden(true);
+            }}
+            className="rounded-lg px-2 py-1.5 text-[0.9rem] font-semibold text-stone hover:bg-paper-2"
+          >
+            Hide
+          </button>
+        }
+      />
+      <ul className="divide-y divide-line">
+        {items.map((i) => (
+          <li key={i.label}>
+            <Link href={i.href} className="flex items-center gap-3 px-5 py-3 hover:bg-paper">
+              {i.done ? <CircleCheck className="h-6 w-6 shrink-0 text-pine" aria-label="Done" /> : <span className="h-6 w-6 shrink-0 rounded-full border-2 border-field" aria-label="Not done" />}
+              <span className={cx("flex-1", i.done && "text-stone line-through decoration-stone/50")}>{i.label}</span>
+              {!i.done && <ArrowRight className="h-5 w-5 shrink-0 text-stone" aria-hidden />}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
 }
 
 function Welcome({ demo, roadId }: { demo: boolean; roadId: string }) {

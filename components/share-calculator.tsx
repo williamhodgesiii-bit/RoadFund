@@ -256,7 +256,7 @@ export function ShareCalculator({ compact = false }: { compact?: boolean }) {
             <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-semibold">
               <ClipboardList className="h-5 w-5 text-pine" aria-hidden /> Compare every method side by side
             </summary>
-            <div className="overflow-x-auto border-t border-line">
+            <div className="overflow-x-auto border-t border-line" tabIndex={0} role="region" aria-label="Share comparison">
               <table className="w-full min-w-[520px] text-[0.92rem]">
                 <thead>
                   <tr className="text-left text-stone">

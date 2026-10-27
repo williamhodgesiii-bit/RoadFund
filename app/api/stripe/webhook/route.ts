@@ -3,14 +3,14 @@ import type Stripe from "stripe";
 import { notifyLetterRequest, notifyPayment, notifyPurchase } from "@/lib/server/effects";
 import { json } from "@/lib/server/http";
 import { mutate, roadIdByStripeAccount } from "@/lib/server/store";
-import { accountStateFrom, endSubscription, failDuesSession, recordDuesSession, recordLetterSession, recordRoadPurchase, stripe, stripeEnabled, webhookSecret } from "@/lib/server/stripe";
+import { accountStateFrom, endSubscription, failDuesSession, recordDuesSession, recordLetterSession, recordRoadPurchase, stripe, stripeEnabled, syncSubscription, webhookSecret } from "@/lib/server/stripe";
 
 /**
  * Stripe webhooks. Configure one endpoint at /api/stripe/webhook listening to
  * events on your account and on connected accounts:
  * checkout.session.completed, checkout.session.async_payment_succeeded,
  * checkout.session.async_payment_failed, account.updated,
- * customer.subscription.deleted.
+ * customer.subscription.updated, customer.subscription.deleted.
  */
 export async function POST(req: Request) {
   if (!stripeEnabled || !webhookSecret) return json({ error: "Webhooks aren't configured." }, 501);
@@ -55,6 +55,9 @@ export async function POST(req: Request) {
         }
         break;
       }
+      case "customer.subscription.updated":
+        await syncSubscription(event.data.object);
+        break;
       case "customer.subscription.deleted":
         await endSubscription(event.data.object);
         break;

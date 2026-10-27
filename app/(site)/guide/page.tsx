@@ -73,7 +73,7 @@ export default function GuidePage() {
           In these states the law already says who pays when there&apos;s no agreement, and Fannie Mae accepts that in place of a written one. Other states may have
           similar laws.
         </p>
-        <div className="mt-5 overflow-x-auto rounded-[var(--radius-card)] border border-line bg-white">
+        <div className="mt-5 overflow-x-auto rounded-[var(--radius-card)] border border-line bg-white" tabIndex={0} role="region" aria-label="State road laws">
           <table className="w-full min-w-[560px] text-left">
             <thead className="bg-paper">
               <tr>

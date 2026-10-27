@@ -243,7 +243,7 @@ export default function SettingsPage() {
               <Button variant="ghost" icon={<Upload className="h-5 w-5" aria-hidden />} onClick={() => fileInput.current?.click()}>
                 Import a backup
               </Button>
-              <input ref={fileInput} type="file" accept="application/json,.json" className="sr-only" onChange={(e) => e.target.files?.[0] && importRoad(e.target.files[0])} />
+              <input ref={fileInput} type="file" accept="application/json,.json" className="sr-only" aria-label="Backup file to import" onChange={(e) => e.target.files?.[0] && importRoad(e.target.files[0])} />
             </div>
             <ul className="space-y-1 text-[0.92rem] text-stone">
               <li>Payments: {status.stripe === "live" ? "Stripe, live" : status.stripe === "test" ? "Stripe test mode (no real money)" : "simulated"}{road.demo && status.stripe ? " (the demo road is always simulated)" : ""}</li>

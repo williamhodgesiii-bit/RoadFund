@@ -42,7 +42,7 @@ export default function LettersPage() {
           <Button
             variant="secondary"
             icon={<Copy className="h-5 w-5" aria-hidden />}
-            onClick={async () => (await copyText(`${window.location.origin}/closing#request — road code ${road.code}`)) && toast("Copied the request link and road code.")}
+            onClick={async () => (await copyText(`Request a Road Status Letter at ${window.location.origin}/closing#request with road code ${road.code}`)) && toast("Copied the request link and road code.")}
           >
             Copy request link
           </Button>

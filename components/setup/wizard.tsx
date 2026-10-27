@@ -422,7 +422,7 @@ function StepRoad({ d, set, pathLen }: StepProps & { pathLen: number | null }) {
         <p className="mt-1 text-stone">Optional, but it measures the road and each driveway for you. Search for an address on the road, then tap from the entrance to the far end.</p>
         <form onSubmit={search} className="mt-4 flex gap-2">
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="An address on or near the road" aria-label="Search for an address" />
-          <Button type="submit" variant="secondary" loading={searching} icon={<Search className="h-5 w-5" aria-hidden />}>
+          <Button type="submit" variant="secondary" loading={searching} icon={<Search className="h-5 w-5" aria-hidden />} aria-label="Search">
             <span className="hidden sm:inline">Search</span>
           </Button>
         </form>

@@ -239,7 +239,10 @@ function HandoffDialog({ onClose }: { onClose: () => void }) {
           </Select>
         </Field>
         <p className="text-stone">
-          Messages, bills and letters will go out under their name. Then send them the captain link from Settings so they can open the road on their own phone.
+          Messages, bills and letters will go out under their name.{" "}
+          {road.homes.find((h) => h.id === to)?.email
+            ? "They can open the road on their own phone by signing in with their email at Road Fund's Captain sign-in page, or you can send them the captain link from Settings."
+            : "Add their email first so they can sign in on their own phone, or send them the captain link from Settings."}
         </p>
       </div>
     </Dialog>

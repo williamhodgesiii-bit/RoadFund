@@ -174,7 +174,7 @@ export default function RoadPage() {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-line">
+          <div className="overflow-x-auto rounded-xl border border-line" tabIndex={0} role="region" aria-label="Shares by home">
             <table className="w-full min-w-[560px] text-left">
               <thead className="bg-paper text-[0.88rem] text-stone">
                 <tr>

@@ -111,7 +111,7 @@ export default function Landing() {
       {/* Features */}
       <section className="border-y border-line bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="text-[2rem] font-black">Everything the road captain does, in one place</h2>
+          <h2 className="text-[2rem] font-black">Dues, bills, votes and papers for the whole road</h2>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <Feature icon={<Banknote className="h-6 w-6" aria-hidden />} title="Dues and fair shares">
               Equal, by frontage, by distance, or by use. Every neighbor sees exactly why they owe what they owe.
@@ -375,7 +375,7 @@ function MarkCell({ m }: { m: Mark }) {
 
 function ComparisonTable() {
   return (
-    <div className="mt-8 overflow-x-auto rounded-[var(--radius-card)] border border-line">
+    <div className="mt-8 overflow-x-auto rounded-[var(--radius-card)] border border-line" tabIndex={0} role="region" aria-label="Comparison table">
       <table className="w-full min-w-[760px] border-collapse text-left">
         <caption className="sr-only">Road Fund compared with other ways roads collect dues</caption>
         <thead className="bg-paper">

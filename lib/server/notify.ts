@@ -56,9 +56,9 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 export function textToHtml(text: string): string {
   const body = text
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 16px">${esc(p).replace(/\n/g, "<br>").replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#2F5D50;font-weight:bold">${u}</a>`)}</p>`)
+    .map((p) => `<p style="margin:0 0 16px">${esc(p).replace(/\n/g, "<br>").replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#1F5E3B;font-weight:bold">${u}</a>`)}</p>`)
     .join("");
-  return `<!doctype html><html><body style="margin:0;background:#F7F4EC"><div style="max-width:560px;margin:0 auto;padding:24px;font:18px/1.55 Arial,Helvetica,sans-serif;color:#1E2320">${body}</div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#F6F4EF"><div style="max-width:560px;margin:0 auto;padding:24px;font:18px/1.55 Arial,Helvetica,sans-serif;color:#1E2320">${body}</div></body></html>`;
 }
 
 export async function sendEmail(m: Email): Promise<SendResult> {

@@ -29,7 +29,7 @@ const PLANS = [
       "Pay contractors from the road account",
       "Work log with photos and damage map",
       "Votes by text link",
-      "Documents in one place",
+      "Storage for deeds, plat, insurance and minutes",
       "AI assistant: messages, quotes, deeds",
       "Savings planner for big repairs",
       "Weather alerts to your plow contractor",

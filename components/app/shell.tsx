@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
-import { Banknote, ChevronDown, Eye, FileText, House, LoaderCircle, Map, Settings, Users } from "lucide-react";
+import { Banknote, ChevronDown, CircleHelp, Eye, FileText, House, LoaderCircle, Map, Settings, Users } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { ButtonLink, Callout, cx } from "@/components/ui";
 import { ApiError, loadRoad } from "@/lib/client/backend";
@@ -144,6 +144,9 @@ function Chrome({ children }: { children: React.ReactNode }) {
             className={cx("flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold", path.startsWith("/app/settings") ? "bg-paper-2" : "hover:bg-paper-2")}
           >
             <Settings className="h-5 w-5" aria-hidden /> Settings
+          </Link>
+          <Link href="/help#captains" className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold hover:bg-paper-2">
+            <CircleHelp className="h-5 w-5" aria-hidden /> Help
           </Link>
           <p className="px-3 pt-2 text-[0.8rem] text-stone">
             {entry.where === "cloud" ? "Saved to the cloud" : "Saved in this browser"}

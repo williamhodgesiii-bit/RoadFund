@@ -93,7 +93,7 @@ export function SiteFooter() {
           <Logo />
           <p className="mt-3 max-w-sm text-stone">Dues, records and closing letters for private roads. Built for the neighbor who keeps the road running.</p>
         </div>
-        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Demo road"], ["/start", "Set up your road"], ["/signin", "Captain sign-in"]]} />
+        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Demo road"], ["/start", "Set up your road"], ["/signin", "Captain sign-in"], ["/help", "Help"]]} />
         <FooterCol title="Free tools" links={[["/calculator", "Share calculator"], ["/guide", "Road law guide"], ["/verify", "Verify a letter"]]} />
         <FooterCol title="Closings" links={[["/closing", "Title and lenders"], ["/closing#request", "Request a letter"], ["/legal", "Terms and privacy"]]} />
       </div>

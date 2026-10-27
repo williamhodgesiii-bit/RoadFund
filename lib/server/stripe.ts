@@ -287,6 +287,25 @@ export async function billingPortalUrl(customerId: string, origin: string): Prom
   return s.url;
 }
 
+/** Renewals and plan changes: keep the plan and "paid through" date in step with Stripe. */
+export async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
+  const roadId = sub.metadata?.roadId;
+  const plan = sub.metadata?.plan;
+  if (!roadId || (plan !== "roadfund" && plan !== "plus")) return;
+  if (sub.status !== "active" && sub.status !== "trialing") return endSubscription(sub);
+  // current_period_end moved from the subscription to its items in newer API versions.
+  const end = (sub as unknown as { current_period_end?: number }).current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+  if (!end) return;
+  const paidThrough = isoDate(new Date(end * 1000));
+  await mutate(roadId, (road) => ({
+    commands:
+      road.billing?.subscriptionId !== sub.id || (road.billing.paidThrough === paidThrough && road.plan === plan)
+        ? []
+        : [{ type: "road.billing", plan, billing: { ...road.billing, paidThrough } }],
+    ctx: { at: new Date().toISOString(), actor: { kind: "system", homeId: null, name: "Stripe" } },
+  }));
+}
+
 /** Subscription ended or lapsed: drop back to the free plan. */
 export async function endSubscription(sub: Stripe.Subscription): Promise<void> {
   const roadId = sub.metadata?.roadId;

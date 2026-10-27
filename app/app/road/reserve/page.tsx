@@ -59,7 +59,7 @@ export default function ReservePage() {
               )}
               <details>
                 <summary className="cursor-pointer font-semibold text-pine">Show as a table</summary>
-                <div className="mt-2 overflow-x-auto">
+                <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label="Year by year">
                   <table className="w-full min-w-[520px] text-[0.92rem]">
                     <thead className="text-left text-stone">
                       <tr>

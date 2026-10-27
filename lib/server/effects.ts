@@ -213,7 +213,7 @@ export async function afterNeighborChange(before: Road, after: Road, homeId: str
   // Carriers expect a confirmation text right after someone opts in.
   if (cmd.type === "home.contact" && home.smsOptIn && (!was.smsOptIn || was.phone !== home.phone) && smsEnabled) {
     await safe("opt-in confirmation", () =>
-      sendSms(home.phone, `Road Fund: you'll get texts about ${after.name} dues, votes and road work. About 1 to 4 texts a month. Msg & data rates may apply. Reply HELP for help, STOP to stop.`),
+      sendSms(home.phone, `Road Fund: you'll get texts about ${after.name} dues, votes and road work. Up to 6 texts a month. Msg & data rates may apply. Reply HELP for help, STOP to stop.`),
     );
   }
   if (!live(after)) return;

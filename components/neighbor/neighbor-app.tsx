@@ -867,12 +867,39 @@ function AgreementScreen({ view, send, aiOn }: { view: NeighborView; send: Send;
 function SettingsScreen({ view, send }: { view: NeighborView; send: Send }) {
   const [phone, setPhone] = useState(view.me.phone);
   const [email, setEmail] = useState(view.me.email);
+  const [large, setLarge] = useState(() => typeof document !== "undefined" && document.documentElement.getAttribute("data-text") === "large");
+  const setTextSize = (big: boolean) => {
+    setLarge(big);
+    if (big) document.documentElement.setAttribute("data-text", "large");
+    else document.documentElement.removeAttribute("data-text");
+    try {
+      localStorage.setItem("rf:text", big ? "large" : "normal");
+    } catch {}
+  };
   return (
     <>
+      <Card className="p-5">
+        <p className="mb-3 font-bold">Text size</p>
+        <div className="grid grid-cols-2 gap-3">
+          {[false, true].map((big) => (
+            <button
+              key={String(big)}
+              onClick={() => setTextSize(big)}
+              className={cx("rounded-xl border-2 p-4 text-left", large === big ? "border-pine bg-pine-50/60" : "border-line bg-white")}
+              aria-pressed={large === big}
+            >
+              <span className={cx("block font-bold", big ? "text-[1.35rem]" : "text-[1.1rem]")}>Aa</span>
+              <span className="text-[0.95rem]">{big ? "Larger" : "Standard"}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
       <Card className="space-y-5 p-5">
         <Toggle
           checked={view.me.smsOptIn}
-          onChange={(v) => send({ type: "home.contact", homeId: view.me.id, patch: { smsOptIn: v } }, v ? "Texts turned on." : "Texts turned off.")}
+          onChange={(v) =>
+            send({ type: "home.contact", homeId: view.me.id, patch: v && phone.trim() !== view.me.phone ? { smsOptIn: v, phone: phone.trim() } : { smsOptIn: v } }, v ? "Texts turned on." : "Texts turned off.")
+          }
           label="Get texts from the road"
           hint={`Dues reminders, votes and road work from ${view.road.name} via Road Fund. Up to 6 a month. Message and data rates may apply. Reply STOP to stop, HELP for help.`}
           disabled={!phone.trim()}
@@ -896,6 +923,11 @@ function SettingsScreen({ view, send }: { view: NeighborView; send: Send }) {
         </Button>
         <p className="text-[0.9rem] text-stone">Only the road captain sees your phone and email. They&apos;re never sold or shared.</p>
       </Card>
+      <p className="text-center text-[0.95rem]">
+        <a href="/help#neighbors" className="font-semibold text-pine underline">
+          Help and common questions
+        </a>
+      </p>
     </>
   );
 }
