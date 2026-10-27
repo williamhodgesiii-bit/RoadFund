@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { DeploymentNote } from "./deployment-note";
 import { Menu, X } from "lucide-react";
 import { Logo } from "./logo";
 import { ButtonLink, cx } from "./ui";
@@ -92,7 +93,7 @@ export function SiteFooter() {
           <Logo />
           <p className="mt-3 max-w-sm text-stone">Dues, records and closing letters for private roads. Built for the neighbor who keeps the road running.</p>
         </div>
-        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Demo road"], ["/start", "Set up your road"]]} />
+        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Demo road"], ["/start", "Set up your road"], ["/signin", "Captain sign-in"]]} />
         <FooterCol title="Free tools" links={[["/calculator", "Share calculator"], ["/guide", "Road law guide"], ["/verify", "Verify a letter"]]} />
         <FooterCol title="Closings" links={[["/closing", "Title and lenders"], ["/closing#request", "Request a letter"], ["/legal", "Terms and privacy"]]} />
       </div>
@@ -101,7 +102,7 @@ export function SiteFooter() {
           <p>
             Road Fund is not a law firm and does not give legal advice. Agreement drafts are for review by a licensed attorney in your state.
           </p>
-          <p>Test deployment: payments, bank connections, texts and notary steps are simulated. No real money moves.</p>
+          <DeploymentNote variant="footer" />
         </div>
       </div>
     </footer>

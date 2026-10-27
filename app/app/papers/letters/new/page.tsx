@@ -13,7 +13,7 @@ import type { Requester, StatusLetter } from "@/lib/types";
 
 export default function NewLetterPage() {
   const router = useRouter();
-  const { road, dispatch, now } = useRoad();
+  const { road, dispatch, now, live } = useRoad();
   // Filled from a title company's request when opened from the inbox.
   const requestParam = useSearchParams().get("request");
   const [incoming] = useState(() => road.letterRequests.find((x) => x.id === requestParam) ?? null);
@@ -80,7 +80,11 @@ export default function NewLetterPage() {
             <Button block size="lg" loading={saving} onClick={issue} disabled={!preview || !req.name.trim()}>
               Issue letter
             </Button>
-            <p className="text-[0.88rem] text-stone">Test mode: the {money(LETTER_FEE)} fee is not charged.</p>
+            <p className="text-[0.88rem] text-stone">
+              {live
+                ? `Road Fund doesn't charge for letters you issue yourself. Title companies that request one on Road Fund pay the ${money(LETTER_FEE)} fee online.`
+                : `Test mode: the ${money(LETTER_FEE)} fee is not charged.`}
+            </p>
           </div>
         </Card>
         {preview && (

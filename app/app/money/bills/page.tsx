@@ -13,7 +13,7 @@ import { accountSummary } from "@/lib/selectors";
 import type { Expense } from "@/lib/types";
 
 export default function BillsPage() {
-  const { road, dispatch, now } = useRoad();
+  const { road, dispatch, now, live } = useRoad();
   const [adding, setAdding] = useState(false);
   const [paying, setPaying] = useState<Expense | null>(null);
   const acct = accountSummary(road, now);
@@ -95,18 +95,20 @@ export default function BillsPage() {
                 className="flex items-center gap-3 rounded-xl border-2 border-pine bg-pine-50/60 p-4 text-left disabled:opacity-60"
                 disabled={!canPayFromAccount || road.account.status !== "connected"}
                 onClick={async () => {
-                  if (await dispatch({ type: "expense.pay", expenseId: paying.id, via: "road-account" }, `Paid ${paying.vendorName} ${money(paying.amount)} (simulated).`)) setPaying(null);
+                  if (await dispatch({ type: "expense.pay", expenseId: paying.id, via: "road-account" }, live ? `Recorded: paid ${paying.vendorName} ${money(paying.amount)} from the road account.` : `Paid ${paying.vendorName} ${money(paying.amount)} (simulated).`)) setPaying(null);
                 }}
               >
                 {canPayFromAccount ? <Landmark className="h-6 w-6 text-pine" aria-hidden /> : <Lock className="h-6 w-6 text-sign-ink" aria-hidden />}
                 <span>
-                  <span className="block font-bold">Pay from the road account</span>
+                  <span className="block font-bold">{live ? "Paid from the road's bank account" : "Pay from the road account"}</span>
                   <span className="block text-[0.9rem] text-stone">
                     {!canPayFromAccount
                       ? "Part of the Road Fund plan. Upgrade in Settings."
                       : road.account.status !== "connected"
                         ? "Connect the road's bank account first."
-                        : `Sent by bank transfer, arrives in 1–2 business days. ${money(acct.available)} available.`}
+                        : live
+                          ? `Bill pay, a road debit card or a transfer from the road's bank. ${money(acct.available)} available.`
+                          : `Sent by bank transfer, arrives in 1–2 business days. ${money(acct.available)} available.`}
                   </span>
                 </span>
               </button>

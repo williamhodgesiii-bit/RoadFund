@@ -16,14 +16,26 @@ import { listRoads, saveEntry, setActiveId, type RoadEntry } from "./registry";
 export interface Status {
   cloud: boolean;
   ai: boolean;
+  /** Real payments through Stripe: "test" keys move no money, "live" keys do. null: simulated. */
+  stripe: "test" | "live" | null;
+  email: boolean;
+  sms: boolean;
 }
+
+export const OFFLINE_STATUS: Status = { cloud: false, ai: false, stripe: null, email: false, sms: false };
 
 let statusPromise: Promise<Status> | null = null;
 export function getStatus(): Promise<Status> {
   statusPromise ??= fetch("/api/status")
-    .then((r) => (r.ok ? (r.json() as Promise<Status>) : { cloud: false, ai: false }))
-    .catch(() => ({ cloud: false, ai: false }));
+    .then((r) => (r.ok ? (r.json() as Promise<Status>) : OFFLINE_STATUS))
+    .then((s) => ({ ...OFFLINE_STATUS, ...s }))
+    .catch(() => OFFLINE_STATUS);
   return statusPromise;
+}
+
+/** Real payments apply to cloud roads that aren't the demo. */
+export function paysForReal(status: Status, road: Pick<Road, "demo">, entry?: Pick<RoadEntry, "where"> | null): boolean {
+  return !!status.stripe && status.cloud && !road.demo && (entry ? entry.where === "cloud" : true);
 }
 
 export class ApiError extends Error {
@@ -163,6 +175,8 @@ export interface RoadLookup {
   state: string;
   homes: { id: string; label: string; address: string }[];
   where: "local" | "cloud";
+  /** The $75 fee is paid by card before the request goes to the captain. */
+  payFirst?: boolean;
 }
 
 function codeVariants(input: string): string {
@@ -187,7 +201,8 @@ export async function lookupRoad(code: string): Promise<RoadLookup | null> {
   return road ? { ...road, where: "cloud" } : null;
 }
 
-export async function requestLetter(input: { lookup: RoadLookup; homeId: string | null; propertyAddress: string; closingDate: string | null; note: string; requester: Requester }): Promise<void> {
+/** Returns a checkout link when the letter fee is collected first. */
+export async function requestLetter(input: { lookup: RoadLookup; homeId: string | null; propertyAddress: string; closingDate: string | null; note: string; requester: Requester }): Promise<{ url?: string }> {
   if (input.lookup.where === "local") {
     const road = localRoads().find((r) => r.code === input.lookup.code);
     if (!road) throw new ApiError("Road not found.", 404);
@@ -204,9 +219,9 @@ export async function requestLetter(input: { lookup: RoadLookup; homeId: string 
       note: input.note,
     };
     writeLocalRoad(applyAll(road, [{ type: "letterRequest.create", request }], { at, actor: { kind: "public", homeId: null, name: input.requester.company || input.requester.name } }));
-    return;
+    return {};
   }
-  await api("/api/letter-requests", {
+  return api<{ url?: string }>("/api/letter-requests", {
     method: "POST",
     body: JSON.stringify({ code: input.lookup.code, homeId: input.homeId, propertyAddress: input.propertyAddress, closingDate: input.closingDate, note: input.note, requester: input.requester }),
   });
@@ -248,4 +263,67 @@ export function neighborLink(road: Pick<Road, "id">, token: string): string {
 export function captainLink(entry: RoadEntry): string | null {
   if (entry.where !== "cloud" || !entry.key) return null;
   return `${window.location.origin}/app/join#road=${entry.id}&key=${entry.key}`;
+}
+
+export async function confirmLetterPayment(sessionId: string): Promise<{ ok: boolean; roadName?: string; email?: string }> {
+  return api("/api/letter-requests/confirm", { method: "POST", body: JSON.stringify({ sessionId }) });
+}
+
+// ---------- Stripe (captain) ----------
+
+export type StripeAction =
+  | { action: "connect" | "refresh" | "dashboard" | "agreement" | "portal" }
+  | { action: "plan"; plan: "roadfund" | "plus" }
+  | { action: "confirm"; sessionId: string };
+
+export async function stripeAction(entry: RoadEntry, body: StripeAction): Promise<{ url?: string; road?: Road; due?: number; paid?: boolean }> {
+  return api(`/api/roads/${entry.id}/stripe`, { method: "POST", key: entry.key, body: JSON.stringify(body) });
+}
+
+// ---------- Stripe (neighbor) ----------
+
+export async function startCheckout(roadId: string, token: string, input: { requestId: string; amount: number; method: "ach" | "card" }): Promise<string> {
+  const { url } = await api<{ url: string }>(`/api/n/${roadId}/${token}/checkout`, { method: "POST", body: JSON.stringify({ action: "start", ...input }) });
+  return url;
+}
+
+export async function confirmCheckout(roadId: string, token: string, sessionId: string): Promise<{ view: NeighborView; paymentId: string | null; complete: boolean }> {
+  return api(`/api/n/${roadId}/${token}/checkout`, { method: "POST", body: JSON.stringify({ action: "confirm", sessionId }) });
+}
+
+// ---------- Sending from Road Fund ----------
+
+export interface SendOutcome {
+  homeId: string;
+  channel: "text" | "email" | null;
+  ok: boolean;
+  error?: string;
+}
+
+export async function sendFromServer(
+  entry: RoadEntry,
+  input: { kind: string; logKind: string; template: string; recipients: { homeId: string; values: Record<string, string> }[] },
+): Promise<{ results: SendOutcome[]; road: Road }> {
+  return api(`/api/roads/${entry.id}/send`, { method: "POST", key: entry.key, body: JSON.stringify(input) });
+}
+
+// ---------- Captain sign-in ----------
+
+export async function requestSignIn(email: string): Promise<void> {
+  await api("/api/signin", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+/** Trades the emailed link for captain keys and adds those roads to this device. */
+export async function finishSignIn(token: string): Promise<RoadEntry[]> {
+  const { roads } = await api<{ roads: { id: string; name: string; key: string }[] }>("/api/signin/verify", { method: "POST", body: JSON.stringify({ token }) });
+  const entries = roads.map((r) => ({ id: r.id, name: r.name, where: "cloud" as const, key: r.key, addedAt: new Date().toISOString(), demo: false }));
+  entries.forEach(saveEntry);
+  if (entries[0]) setActiveId(entries[0].id);
+  return entries;
+}
+
+/** Stops this device's captain key from working. */
+export async function signOut(entry: RoadEntry): Promise<void> {
+  if (entry.where !== "cloud" || !entry.key) return;
+  await api(`/api/roads/${entry.id}`, { method: "PATCH", key: entry.key });
 }

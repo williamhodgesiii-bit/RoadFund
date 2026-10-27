@@ -70,7 +70,7 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     { name: "Birch Hollow Lane", state: "MI", county: "Leelanau", town: "Cedar", surface: "gravel", lengthFt, homes, captainHomeId: captainId },
     at(410),
   );
-  road = { ...road, path: PATH, center: { lat: 44.8555, lng: -85.7913 }, activity: [] };
+  road = { ...road, demo: true, path: PATH, center: { lat: 44.8555, lng: -85.7913 }, activity: [] };
 
   const contractors: Contractor[] = [
     { id: uid("ctr"), name: "Kowalski Plowing", trade: "Snow plowing", phone: "(231) 555-0188", email: "kowalskiplow@example.com", w9OnFile: false, isCorporation: false, notes: "Plows after 3 inches. Sands the hill on request." },

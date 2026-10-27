@@ -25,7 +25,7 @@ import { RoadStrip } from "@/components/road-strip";
 import { CALC_KEY, type CalcDraft } from "@/components/share-calculator";
 import { useToast } from "@/components/toast";
 import { Button, Callout, Card, Checkbox, Choice, cx, Field, Input, Select, Textarea } from "@/components/ui";
-import { ai, createRoad, getStatus } from "@/lib/client/backend";
+import { ai, createRoad, getStatus, type Status } from "@/lib/client/backend";
 import { blobToBase64 } from "@/lib/client/files";
 import { shrinkImage } from "@/lib/client/image";
 import { applyAll, type Command } from "@/lib/commands";
@@ -150,6 +150,10 @@ export function SetupWizard() {
   const [d, setD] = useState<Draft>(restored.draft);
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [liveSetup, setLiveSetup] = useState(false);
+  useEffect(() => {
+    getStatus().then((st) => setLiveSetup(!!st.stripe && st.cloud));
+  }, []);
   const top = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -321,7 +325,7 @@ export function SetupWizard() {
           )}
           {d.step < 6 ? (
             <Button className="flex-1" size="lg" onClick={() => go(d.step + 1)} icon={<ArrowRight className="h-5 w-5" aria-hidden />}>
-              {d.step === 4 && !d.bank.connected ? "Skip for now" : "Continue"}
+              {d.step === 4 && !d.bank.connected && !liveSetup ? "Skip for now" : "Continue"}
             </Button>
           ) : (
             <div className="flex flex-1 flex-col gap-2 sm:flex-row">
@@ -485,8 +489,8 @@ function StepHomes({ d, set }: StepProps) {
   return (
     <div className="space-y-6">
       <p className="text-stone">
-        List every lot that uses the road, including vacant lots. Only you see phone numbers and emails. In the live product, homes and owners come from county parcel
-        records; here, type them in.
+        List every lot that uses the road, including vacant lots. Only you see phone numbers and emails. Your county&apos;s property tax map or tax bills list
+        owner names if you need them.
       </p>
       <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-card">
         <span className="font-semibold">How many lots use the road?</span>
@@ -624,8 +628,8 @@ function StepHomes({ d, set }: StepProps) {
         Add a lot
       </Button>
       <Callout tone="info" title="About texts">
-        Road Fund sends automatic texts only to neighbors who agree to them from their own pay page. Until they do, you send their link from your phone or by email,
-        or print a letter.
+        Road Fund texts only neighbors who agree to it from their own page. Everyone else gets an email if you add one here, or you send their link from your own
+        phone, or print a letter.
       </Callout>
     </div>
   );
@@ -701,6 +705,39 @@ function StepSplit({ d, set, shares, budgetTotal, lengthFt, goHomes }: StepProps
 
 function StepBank({ d, set }: StepProps) {
   const [connecting, setConnecting] = useState(false);
+  const [status, setStatus] = useState<Status | null>(null);
+  useEffect(() => {
+    getStatus().then(setStatus);
+  }, []);
+  const live = !!status?.stripe && status.cloud;
+  const me = d.homes.find((h) => h.id === d.meId);
+  const emailField = me && status?.cloud && (
+    <Card className="p-5">
+      <Field
+        label="Your email"
+        htmlFor="wz-cap-email"
+        hint="Road Fund sends you payment alerts and letter requests here, and a sign-in link if you change phones. Neighbors don't see it unless you share it."
+      >
+        <Input id="wz-cap-email" type="email" autoComplete="email" value={me.email} onChange={(e) => set({ homes: d.homes.map((h) => (h.id === me.id ? { ...h, email: e.target.value } : h)) })} />
+      </Field>
+    </Card>
+  );
+  if (live) {
+    return (
+      <div className="space-y-6">
+        <p className="text-[1.05rem]">
+          Neighbors&apos; payments go straight into an account in the road&apos;s name. Road Fund never holds the money. Stripe, the payment company, sets up the account
+          and checks the details.
+        </p>
+        <Callout tone="info" title="You'll do this right after setup">
+          It takes about 10 minutes on Stripe&apos;s site. Have the road&apos;s bank account and routing number ready, and the road&apos;s tax ID (EIN) if it has one. You&apos;ll
+          find it under Money, then Bank account.
+        </Callout>
+        {emailField}
+        <p className="text-stone">Until it&apos;s connected, neighbors can still see their share and pay you by check; you record it in the ledger.</p>
+      </div>
+    );
+  }
   const connect = () => {
     setConnecting(true);
     window.setTimeout(() => {
@@ -745,6 +782,7 @@ function StepBank({ d, set }: StepProps) {
           </Button>
         </Card>
       )}
+      {emailField}
       <p className="text-stone">You can skip this. Neighbors can still see their share and pay you by check; you record it in the ledger.</p>
     </div>
   );

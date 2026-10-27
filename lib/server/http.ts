@@ -1,6 +1,7 @@
 import "server-only";
 
 import { CommandError } from "../commands.ts";
+import { kv, kvEnabled } from "./kv.ts";
 
 export function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
@@ -23,10 +24,26 @@ export function clientIp(req: Request): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 }
 
-// Best-effort, per-instance rate limit. Enough to blunt abuse of public endpoints in a test deployment.
+// Fixed-window rate limit. Shared across server instances when Redis is on;
+// per-instance memory otherwise.
 const buckets = new Map<string, { count: number; reset: number }>();
 
-export function rateLimit(key: string, limit: number, windowMs: number): boolean {
+export async function rateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
+  if (kvEnabled) {
+    const windowId = Math.floor(Date.now() / windowMs);
+    const k = `rf:rl:${key}:${windowId}`;
+    try {
+      const n = await kv<number>("INCR", k);
+      if (n === 1) await kv("EXPIRE", k, Math.ceil(windowMs / 1000) + 1);
+      return n <= limit;
+    } catch {
+      // Fall through to memory if Redis is briefly unavailable.
+    }
+  }
+  return memoryLimit(key, limit, windowMs);
+}
+
+function memoryLimit(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
   const b = buckets.get(key);
   if (!b || b.reset < now) {

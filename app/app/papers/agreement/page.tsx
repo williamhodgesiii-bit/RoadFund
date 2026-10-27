@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BookOpen, Check, CircleDot, Download, FileSignature, Gavel, Pencil, Send, Stamp } from "lucide-react";
 import { AskAgreement } from "@/components/app/ask-agreement";
-import { PageHeader, PapersNav, useAiOn } from "@/components/app/common";
+import { BillingReturn, PageHeader, PapersNav, useAiOn, useBuy } from "@/components/app/common";
 import { AmountInput } from "@/components/amount-input";
 import { SendSheet } from "@/components/app/send-sheet";
 import { Button, Callout, Card, CardHeader, Checkbox, cx, Dialog, Field, Input, Select, Textarea } from "@/components/ui";
@@ -11,7 +11,7 @@ import { AGREEMENT_DISCLAIMER, agreementPlainText, buildAgreement } from "@/lib/
 import { downloadFile } from "@/lib/client/links";
 import { signRecipients } from "@/lib/client/recipients";
 import { useRoad } from "@/lib/client/road-context";
-import { addTimeDays, fmtDate, fmtDateTime, isoDate } from "@/lib/dates";
+import { fmtDate, fmtDateTime, isoDate } from "@/lib/dates";
 import { money } from "@/lib/money";
 import { latestShares } from "@/lib/neighbor";
 import { agreementSigned, displayName } from "@/lib/selectors";
@@ -63,6 +63,7 @@ export default function AgreementPage() {
         }
       />
       <PapersNav />
+      <BillingReturn />
 
       <ol className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="Agreement progress">
         {STEPS.map((s, i) => (
@@ -152,117 +153,233 @@ export default function AgreementPage() {
 
 function StepPanel({ onSign, onRecord, signed }: { onSign: () => void; onRecord: () => void; signed: number }) {
   const { road, dispatch } = useRoad();
+  const buy = useBuy();
   const a = road.agreement;
   const total = road.homes.length;
   const ronOk = !RON_UNAVAILABLE.has(road.state);
   const bought = !!a.packagePurchasedAt;
+  const [dialog, setDialog] = useState<"attorney" | "approval" | "notary" | "notarized" | null>(null);
 
-  const purchase = (
+  // The package is help, not a gate: captains with their own attorney and notary can do every step themselves.
+  const purchase = bought ? (
+    <Callout tone="ok" title="Agreement package added">
+      Road Fund will email you within one business day to book a {stateName(road.state)} attorney{ronOk ? " and a remote online notary" : " and a notary"}, then file the recording. Attorney, notary and county fees are billed at cost.
+    </Callout>
+  ) : (
     <Callout
       tone="info"
-      title="Agreement package: $249"
-      action={<Button onClick={() => dispatch({ type: "agreement.purchase" }, "Agreement package added (test mode, no charge).")}>Add the package</Button>}
+      title="Want us to handle it? Agreement package: $249"
+      action={
+        <Button variant="secondary" loading={buy.busy === "agreement"} onClick={() => buy.agreement()}>
+          Add the package
+        </Button>
+      }
     >
-      Attorney review booking, e-signatures from every owner, {ronOk ? "remote online notary" : "notary scheduling"} and county recording. Attorney, notary and county fees are passed through at cost.
+      We book a {stateName(road.state)} real estate attorney to review it, {ronOk ? "set up a remote online notary for every owner" : "line up a notary"} and file it with {road.county} County. Attorney, notary and county fees are passed through at cost. {buy.note}
     </Callout>
   );
 
-  switch (a.step) {
-    case "draft":
-      return (
-        <Card className="p-5">
-          <h2 className="text-[1.2rem] font-extrabold">Step 1: Check the draft</h2>
-          <p className="mt-1 text-stone">Read each section and its plain-English summary. Edit the terms until they match how your road works, then send it to a partner attorney licensed in {stateName(road.state)}.</p>
-          <div className="mt-4 space-y-3">
-            {!bought && purchase}
-            <Button
-              disabled={!bought}
-              icon={<Gavel className="h-5 w-5" aria-hidden />}
-              onClick={() => dispatch({ type: "agreement.step", step: "review", review: { attorney: "Partner attorney", firm: `${stateName(road.state)} real estate attorney (test)`, requestedAt: new Date().toISOString(), approvedAt: null, notes: "" } }, "Sent for attorney review.")}
-            >
-              Send for attorney review
+  const panel = (() => {
+    switch (a.step) {
+      case "draft":
+        return (
+          <Card className="p-5">
+            <h2 className="text-[1.2rem] font-extrabold">Step 1: Check the draft</h2>
+            <p className="mt-1 text-stone">Read each section and its plain-English summary. Edit the terms until they match how your road works. Then download the draft and give it to an attorney licensed in {stateName(road.state)}.</p>
+            <div className="mt-4 space-y-3">
+              <Button icon={<Gavel className="h-5 w-5" aria-hidden />} onClick={() => setDialog("attorney")}>
+                I sent it to an attorney
+              </Button>
+              {purchase}
+            </div>
+          </Card>
+        );
+      case "review":
+        return (
+          <Card className="p-5">
+            <h2 className="text-[1.2rem] font-extrabold">Step 2: Attorney review</h2>
+            <p className="mt-1 text-stone">
+              {[a.review?.attorney, a.review?.firm].filter(Boolean).join(", ") || "Your attorney"} has the draft{a.review?.requestedAt ? ` since ${fmtDate(a.review.requestedAt)}` : ""}.{" "}
+              {a.review?.approvedAt ? `Approved ${fmtDate(a.review.approvedAt)}.` : "Most reviews take 3 to 5 business days. If they change wording, update the terms here so every owner signs the same text."}
+            </p>
+            {a.review?.notes && <p className="mt-2 rounded-lg bg-paper p-3 text-[0.95rem]">Attorney notes: {a.review.notes}</p>}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {!a.review?.approvedAt ? (
+                <Button icon={<Check className="h-5 w-5" aria-hidden />} onClick={() => setDialog("approval")}>
+                  The attorney approved it
+                </Button>
+              ) : (
+                <Button icon={<FileSignature className="h-5 w-5" aria-hidden />} onClick={() => dispatch({ type: "agreement.step", step: "signing" }, "Open for signatures.")}>
+                  Open for signatures
+                </Button>
+              )}
+            </div>
+          </Card>
+        );
+      case "signing":
+        return (
+          <Card className="p-5">
+            <h2 className="text-[1.2rem] font-extrabold">Step 3: Every owner signs</h2>
+            <p className="mt-1 text-stone">
+              {signed} of {total} signed. Each owner reads the agreement and signs from their own link with a typed signature. Signing records the time and version.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {signed < total ? (
+                <Button icon={<Send className="h-5 w-5" aria-hidden />} onClick={onSign}>
+                  Send signing links to {total - signed}
+                </Button>
+              ) : (
+                <Button icon={<Stamp className="h-5 w-5" aria-hidden />} onClick={() => setDialog("notary")}>
+                  Set up the notary
+                </Button>
+              )}
+            </div>
+          </Card>
+        );
+      case "notary":
+        return (
+          <Card className="p-5">
+            <h2 className="text-[1.2rem] font-extrabold">Step 4: Notary</h2>
+            <p className="mt-1 text-stone">
+              Each owner acknowledges their signature in front of a notary
+              {a.notary?.provider ? ` (${a.notary.provider}${a.notary.scheduledFor ? `, ${fmtDateTime(a.notary.scheduledFor)}` : ""})` : ""}.{" "}
+              {ronOk ? `${stateName(road.state)} allows remote online notarization by video.` : "California doesn't allow remote online notarization, so owners need an in-person notary. Banks and shipping stores often have one."}
+            </p>
+            <Button className="mt-4" icon={<Check className="h-5 w-5" aria-hidden />} onClick={() => setDialog("notarized")}>
+              It&apos;s notarized
             </Button>
-          </div>
-        </Card>
-      );
-    case "review":
-      return (
-        <Card className="p-5">
-          <h2 className="text-[1.2rem] font-extrabold">Step 2: Attorney review</h2>
-          <p className="mt-1 text-stone">
-            {a.review?.firm} has the draft{a.review?.requestedAt ? ` since ${fmtDate(a.review.requestedAt)}` : ""}.{" "}
-            {a.review?.approvedAt ? `Approved ${fmtDate(a.review.approvedAt)}.` : "Most reviews take 3 to 5 business days."}
-          </p>
-          {a.review?.notes && <p className="mt-2 rounded-lg bg-paper p-3 text-[0.95rem]">Attorney notes: {a.review.notes}</p>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {!a.review?.approvedAt ? (
-              <Button variant="secondary" onClick={() => dispatch({ type: "agreement.step", step: "review", review: { ...a.review!, approvedAt: new Date().toISOString(), notes: "Approved as drafted (test mode)." } }, "Attorney approval recorded.")}>
-                Simulate attorney approval
-              </Button>
-            ) : (
-              <Button icon={<FileSignature className="h-5 w-5" aria-hidden />} onClick={() => dispatch({ type: "agreement.step", step: "signing" }, "Open for signatures.")} disabled={!bought}>
-                Open for signatures
-              </Button>
-            )}
-          </div>
-          {!bought && <div className="mt-4">{purchase}</div>}
-        </Card>
-      );
-    case "signing":
-      return (
-        <Card className="p-5">
-          <h2 className="text-[1.2rem] font-extrabold">Step 3: Every owner signs</h2>
-          <p className="mt-1 text-stone">
-            {signed} of {total} signed. Each owner reads the agreement and signs from their own link with a typed signature. Signing records the time and version.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {signed < total ? (
-              <Button icon={<Send className="h-5 w-5" aria-hidden />} onClick={onSign}>
-                Send signing links to {total - signed}
-              </Button>
-            ) : (
-              <Button
-                icon={<Stamp className="h-5 w-5" aria-hidden />}
-                onClick={() => dispatch({ type: "agreement.step", step: "notary", notary: { provider: ronOk ? "Remote online notary (test)" : "In-person notary", scheduledFor: addTimeDays(new Date().toISOString(), 3), completedAt: null } }, "Notary scheduled.")}
-              >
-                Schedule the notary
-              </Button>
-            )}
-          </div>
-        </Card>
-      );
-    case "notary":
-      return (
-        <Card className="p-5">
-          <h2 className="text-[1.2rem] font-extrabold">Step 4: Notary</h2>
-          <p className="mt-1 text-stone">
-            {ronOk
-              ? `Owners acknowledge their signatures by video with a remote online notary${a.notary?.scheduledFor ? `, scheduled ${fmtDateTime(a.notary.scheduledFor)}` : ""}.`
-              : "California doesn't allow remote online notarization, so owners need an in-person notary."}
-          </p>
-          <Button className="mt-4" variant="secondary" onClick={() => dispatch({ type: "agreement.step", step: "recording", notary: { ...a.notary!, completedAt: new Date().toISOString() } }, "Notarized.")}>
-            Simulate completed notarization
+          </Card>
+        );
+      case "recording":
+        return (
+          <Card className="p-5">
+            <h2 className="text-[1.2rem] font-extrabold">Step 5: Record with {road.county} County</h2>
+            <p className="mt-1 text-stone">Take or mail the notarized agreement to the {road.county} County register of deeds (some counties accept e-recording). Once recorded, it shows up in every title search on the road.</p>
+            <Button className="mt-4" onClick={onRecord}>
+              Enter recording details
+            </Button>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  })();
+  if (a.step === "recorded") return <RecordedNote />;
+  return (
+    <>
+      {panel}
+      {dialog && <StepDialog kind={dialog} onClose={() => setDialog(null)} />}
+    </>
+  );
+}
+
+function StepDialog({ kind, onClose }: { kind: "attorney" | "approval" | "notary" | "notarized"; onClose: () => void }) {
+  const { road, dispatch } = useRoad();
+  const a = road.agreement;
+  const [name, setName] = useState("");
+  const [firm, setFirm] = useState("");
+  const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(isoDate());
+  const [time, setTime] = useState("10:00");
+  const at = (d: string, t = "12:00") => new Date(`${d}T${t}`).toISOString();
+
+  const config = {
+    attorney: {
+      title: "Who's reviewing it?",
+      save: () => dispatch({ type: "agreement.step", step: "review", review: { attorney: name.trim(), firm: firm.trim(), requestedAt: at(date), approvedAt: null, notes: "" } }, "Attorney review recorded."),
+      ok: !!name.trim(),
+    },
+    approval: {
+      title: "Attorney approval",
+      save: () => dispatch({ type: "agreement.step", step: "review", review: { ...a.review!, approvedAt: at(date), notes: notes.trim() } }, "Approval recorded."),
+      ok: true,
+    },
+    notary: {
+      title: "Notary appointment",
+      save: () => dispatch({ type: "agreement.step", step: "notary", notary: { provider: name.trim(), scheduledFor: at(date, time), completedAt: null } }, "Notary appointment saved."),
+      ok: !!name.trim(),
+    },
+    notarized: {
+      title: "Notarized",
+      save: () => dispatch({ type: "agreement.step", step: "recording", notary: { ...(a.notary ?? { provider: "", scheduledFor: null }), completedAt: at(date) } }, "Notarization recorded."),
+      ok: true,
+    },
+  }[kind];
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={config.title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
           </Button>
-        </Card>
-      );
-    case "recording":
-      return (
-        <Card className="p-5">
-          <h2 className="text-[1.2rem] font-extrabold">Step 5: Record with {road.county} County</h2>
-          <p className="mt-1 text-stone">Sent through an e-recording partner where the county accepts it, or by mail. Once recorded, it shows up in every title search on the road.</p>
-          <Button className="mt-4" onClick={onRecord}>
-            Enter recording details
+          <Button disabled={!config.ok} onClick={async () => (await config.save()) && onClose()}>
+            Save
           </Button>
-        </Card>
-      );
-    case "recorded":
-      return (
-        <Callout tone="ok" title={`Recorded ${a.recording ? fmtDate(a.recording.recordedOn) : ""}`}>
-          {road.county} County instrument {a.recording?.instrument}
-          {a.recording?.bookPage ? `, ${a.recording.bookPage}` : ""}. Road Status Letters now show the recording details.
-        </Callout>
-      );
-  }
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {kind === "attorney" && (
+          <>
+            <Field label="Attorney's name" htmlFor="sd-name">
+              <Input id="sd-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+            </Field>
+            <Field label="Firm" optional htmlFor="sd-firm">
+              <Input id="sd-firm" value={firm} onChange={(e) => setFirm(e.target.value)} />
+            </Field>
+            <Field label="Sent on" htmlFor="sd-date">
+              <Input id="sd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+          </>
+        )}
+        {kind === "approval" && (
+          <>
+            <Field label="Approved on" htmlFor="sd-date">
+              <Input id="sd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+            <Field label="Their notes" optional hint="Anything they changed or want owners to know." htmlFor="sd-notes">
+              <Textarea id="sd-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </Field>
+          </>
+        )}
+        {kind === "notary" && (
+          <>
+            <Field label="Notary or service" hint={RON_UNAVAILABLE.has(road.state) ? "For example, the notary at your bank." : "For example, a remote online notary service or the notary at your bank."} htmlFor="sd-name">
+              <Input id="sd-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Date" htmlFor="sd-date">
+                <Input id="sd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </Field>
+              <Field label="Time" htmlFor="sd-time">
+                <Input id="sd-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              </Field>
+            </div>
+          </>
+        )}
+        {kind === "notarized" && (
+          <Field label="Notarized on" htmlFor="sd-date">
+            <Input id="sd-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+function RecordedNote() {
+  const { road } = useRoad();
+  const r = road.agreement.recording;
+  return (
+    <Callout tone="ok" title={`Recorded ${r ? fmtDate(r.recordedOn) : ""}`}>
+      {road.county} County instrument {r?.instrument}
+      {r?.bookPage ? `, ${r.bookPage}` : ""}. Road Status Letters now show the recording details.
+    </Callout>
+  );
 }
 
 function RecordingDialog({ onClose }: { onClose: () => void }) {

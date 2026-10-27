@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, NotebookPen, Plus, ScrollText, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { FileText, NotebookPen, Plus, ScrollText, Sparkles, Trash2 } from "lucide-react";
 import { AiBadge, FileThumb, PageHeader, PapersNav, PlanGate, UploadButton, useAiOn } from "@/components/app/common";
 import { Button, Callout, Card, CardHeader, Dialog, Empty, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -80,25 +80,9 @@ export default function DocumentsPage() {
       <PapersNav />
       <PlanGate needs="roadfund" feature="Documents" pitch="Keep the deed easements, plat, agreement, insurance and meeting minutes with the road, not in one person's kitchen drawer.">
         {!hasInsurance && (
-          <Callout
-            tone="warn"
-            className="mb-6"
-            title="No liability insurance on file"
-            action={
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<ShieldCheck className="h-4 w-4" aria-hidden />}
-                onClick={() => {
-                  dispatch({ type: "message.log", message: { id: uid("msg"), at: new Date().toISOString(), kind: "general", channel: "email", homeIds: [], body: "Requested a group road liability quote from the partner insurer." } });
-                  toast("Quote request sent to the partner insurer (test mode).");
-                }}
-              >
-                Get a group liability quote
-              </Button>
-            }
-          >
-            Owners can be sued if someone is hurt by a known hazard on the road, and homeowner policies may not cover road-group roles.
+          <Callout tone="warn" className="mb-6" title="No liability insurance on file">
+            Owners can be sued if someone is hurt by a known hazard on the road, and homeowner policies may not cover road-group roles. Ask an insurance agent about a
+            general liability policy for the road group, then add it here as an Insurance document. Road Status Letters show whether a policy is on file.
           </Callout>
         )}
         {road.docs.length === 0 ? (

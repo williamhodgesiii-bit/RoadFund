@@ -109,6 +109,8 @@ export interface Payment {
   payerName: string;
   note: string;
   recordedBy: "neighbor" | "captain";
+  /** Stripe Checkout session that produced this payment, when paid through Stripe. */
+  stripeSessionId?: string;
 }
 
 export interface Expense {
@@ -300,6 +302,8 @@ export interface LetterRequest {
   status: "new" | "fulfilled" | "declined";
   letterId: string | null;
   note: string;
+  /** Set when the requester paid the letter fee through Stripe (refunded if declined). */
+  paidIntentId?: string | null;
 }
 
 export interface ReserveItem {
@@ -383,11 +387,16 @@ export interface RoadSettings {
   defaultPayMethod: "ach" | "card";
   showPaidNames: boolean;
   reminderDays: number[];
+  /** Send reminders automatically on reminderDays (relative to the due date). Default on. */
+  autoReminders?: boolean;
   weather: { enabled: boolean; snowInches: number; contractorId: string | null };
 }
 
 export interface Account {
-  status: "none" | "connected";
+  /** "pending": a Stripe account exists but Stripe hasn't enabled payments yet. */
+  status: "none" | "pending" | "connected";
+  /** Set when the road connected a real Stripe account (live or test keys). */
+  stripeAccountId?: string | null;
   bankName: string;
   last4: string;
   connectedAt: ISOTime | null;
@@ -398,6 +407,8 @@ export interface Account {
 export interface Road {
   schema: 1;
   id: string;
+  /** Demo roads always simulate payments and messages, even when real providers are configured. */
+  demo?: boolean;
   code: string;
   name: string;
   state: string;
@@ -432,4 +443,6 @@ export interface Road {
   notices: Notice[];
   messages: MessageLog[];
   activity: Activity[];
+  /** Paid plan bookkeeping when plans are billed through Stripe. */
+  billing?: { customerId: string | null; subscriptionId: string | null; paidThrough: ISODate | null };
 }

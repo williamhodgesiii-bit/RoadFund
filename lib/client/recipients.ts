@@ -18,6 +18,7 @@ function base(road: Road, h: Home, values: Record<string, string>): Recipient {
     phone: h.phone,
     email: h.email,
     smsOptIn: h.smsOptIn,
+    emailOptIn: h.emailOptIn !== false,
     values: {
       first: (h.owners || h.label).split(/\s|&/)[0] || "neighbor",
       road: road.name,

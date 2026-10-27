@@ -17,6 +17,8 @@ export interface NeighborView {
     homesCount: number;
     accountConnected: boolean;
     plan: Road["plan"];
+    /** The demo road: payments there are always simulated. */
+    demo: boolean;
     settings: Pick<RoadSettings, "payerCoversFees" | "defaultPayMethod">;
     split: SplitSettings;
   };
@@ -80,6 +82,7 @@ export function neighborView(road: Road, homeId: string, now: Date): NeighborVie
       surface: road.surface,
       homesCount: road.homes.length,
       accountConnected: road.account.status === "connected",
+      demo: !!road.demo,
       plan: road.plan,
       settings: { payerCoversFees: road.settings.payerCoversFees, defaultPayMethod: road.settings.defaultPayMethod },
       split: road.split,

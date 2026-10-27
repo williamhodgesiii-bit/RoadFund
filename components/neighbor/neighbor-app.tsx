@@ -29,7 +29,7 @@ import { Button, Callout, Card, CardHeader, Checkbox, Choice, cx, Field, Input, 
 import { AmountInput } from "@/components/amount-input";
 import { useToast } from "@/components/toast";
 import { AGREEMENT_DISCLAIMER, buildAgreement } from "@/lib/agreement";
-import { getStatus, neighborLoad, neighborSend } from "@/lib/client/backend";
+import { confirmCheckout, getStatus, neighborLoad, neighborSend, OFFLINE_STATUS, paysForReal, startCheckout, type Status } from "@/lib/client/backend";
 import { mailtoHref, smsHref } from "@/lib/client/links";
 import type { Command } from "@/lib/commands";
 import { addBusinessDays, fmtDate, fmtDateTime, fmtDay } from "@/lib/dates";
@@ -57,7 +57,11 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
   const [view, setView] = useState<NeighborView | null>(null);
   const [where, setWhere] = useState<"local" | "cloud">("local");
   const [error, setError] = useState<string | null>(null);
-  const [aiOn, setAiOn] = useState(false);
+  const [status, setStatus] = useState<Status>(OFFLINE_STATUS);
+  // Coming back from Stripe Checkout (?paid=...). Only shown once the page has loaded, so server and browser markup still match.
+  const [returned, setReturned] = useState<{ payment: Payment | null; checking: boolean } | null>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("paid") ? { payment: null, checking: true } : null,
+  );
   const hash = useHash();
   const screen = useMemo(() => parseHash(hash), [hash]);
 
@@ -74,8 +78,36 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
   );
 
   useEffect(() => {
-    getStatus().then((s) => setAiOn(s.ai));
+    getStatus().then(setStatus);
   }, []);
+
+  // Back from Stripe Checkout: confirm the payment and show the thank-you screen.
+  useEffect(() => {
+    const paid = new URLSearchParams(window.location.search).get("paid");
+    if (!paid) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    let live = true;
+    const check = async (tries: number): Promise<void> => {
+      try {
+        const res = await confirmCheckout(roadId, token, paid);
+        if (!live) return;
+        setView(res.view);
+        const payment = res.view.receipts.find((p) => p.id === res.paymentId) ?? null;
+        if (!payment && tries > 0) {
+          setReturned({ payment: null, checking: true });
+          window.setTimeout(() => check(tries - 1), 2000);
+          return;
+        }
+        setReturned({ payment, checking: false });
+      } catch (e) {
+        if (live) toast(e instanceof Error ? e.message : "We couldn't confirm the payment yet. Check your page again in a minute.", "error");
+      }
+    };
+    void check(3);
+    return () => {
+      live = false;
+    };
+  }, [roadId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     load();
@@ -122,6 +154,14 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
 
   const first = (view.me.owners || view.me.label).split(/\s|&/)[0];
   const owed = view.bills.reduce((a, b) => a + b.line.outstanding, 0);
+  const live = paysForReal(status, view.road) && where === "cloud";
+  const banner = view.road.demo
+    ? "Demo road: nothing here is real."
+    : live
+      ? status.stripe === "test"
+        ? "Stripe test mode: no real money moves. Test card 4242 4242 4242 4242."
+        : null
+      : "Test mode: no real money moves.";
 
   return (
     <div className="min-h-dvh pb-24">
@@ -134,17 +174,23 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
           <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-[0.85rem] font-semibold">{view.me.label}</span>
         </div>
       </header>
-      <div className="border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.82rem] text-sign-ink">Test mode: no real money moves.</div>
+      {banner && <div className="border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.82rem] text-sign-ink">{banner}</div>}
 
       <main id="main" className="mx-auto max-w-xl space-y-5 px-4 pt-5">
-        {screen.name !== "home" && (
+        {screen.name !== "home" && !returned && (
           <button onClick={() => go("")} className="inline-flex items-center gap-1.5 font-semibold text-pine">
             <ArrowLeft className="h-4 w-4" aria-hidden /> Back
           </button>
         )}
-        {screen.name === "home" && <HomeScreen view={view} where={where} go={go} send={send} />}
-        {screen.name === "pay" && <PayScreen view={view} requestId={screen.requestId} go={go} send={send} />}
-        {screen.name === "agreement" && <AgreementScreen view={view} send={send} aiOn={aiOn && view.road.plan !== "starter"} />}
+        {returned ? (
+          <ThankYou view={view} payment={returned.payment} checking={returned.checking} go={go} onDone={() => setReturned(null)} />
+        ) : (
+          <>
+            {screen.name === "home" && <HomeScreen view={view} where={where} go={go} send={send} />}
+            {screen.name === "pay" && <PayScreen view={view} requestId={screen.requestId} go={go} send={send} live={live} roadId={roadId} token={token} />}
+          </>
+        )}
+        {screen.name === "agreement" && <AgreementScreen view={view} send={send} aiOn={status.ai && view.road.plan !== "starter"} />}
         {screen.name === "receipt" && <ReceiptScreen view={view} id={screen.id} />}
         {screen.name === "settings" && <SettingsScreen view={view} send={send} />}
       </main>
@@ -449,7 +495,63 @@ function stretchEnd(stretches: { toFt: number; homeIds: string[] }[], homeId: st
   return mine.length ? mine[mine.length - 1].toFt : 0;
 }
 
-function PayScreen({ view, requestId, go, send }: { view: NeighborView; requestId: string; go: (h: string) => void; send: Send }) {
+function ThankYou({ view, payment, checking, go, onDone }: { view: NeighborView; payment: Payment | null; checking: boolean; go: (h: string) => void; onDone: () => void }) {
+  if (checking && !payment) {
+    return (
+      <Card className="p-6 text-center">
+        <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-pine" aria-hidden />
+        <p className="mt-3 text-[1.2rem] font-bold">Confirming your payment…</p>
+      </Card>
+    );
+  }
+  if (!payment) {
+    return (
+      <Card className="p-6 text-center">
+        <Clock className="mx-auto h-12 w-12 text-sign-ink" aria-hidden />
+        <p className="mt-3 text-[1.3rem] font-black">Payment received by Stripe</p>
+        <p className="mt-2 text-stone">It will show on your page in a few minutes. You don&apos;t need to pay again.</p>
+        <Button className="mt-5" block onClick={onDone}>
+          Back to your page
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="p-6 text-center">
+      <CircleCheck className="mx-auto h-14 w-14 text-pine" aria-hidden />
+      <p className="mt-3 text-[1.5rem] font-black">Thank you</p>
+      <p className="tnum mt-1 text-[1.1rem]">
+        {money(payment.amount)} paid to {view.road.name}
+      </p>
+      <p className="mt-2 text-stone">
+        Receipt {payment.receiptNo}. {payment.method === "ach" ? `Bank payments take about 4 business days; it should clear by ${fmtDate(payment.clearsAt)}.` : "Card payments clear in about 2 business days."}
+        {view.me.email ? ` A receipt is on its way to ${view.me.email}.` : ""}
+      </p>
+      <div className="mt-5 grid gap-2">
+        <Button
+          onClick={() => {
+            onDone();
+            go(`receipt-${payment.id}`);
+          }}
+          variant="secondary"
+        >
+          View receipt
+        </Button>
+        <Button
+          onClick={() => {
+            onDone();
+            go("");
+          }}
+        >
+          Back to your page
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: NeighborView; requestId: string; go: (h: string) => void; send: Send; live: boolean; roadId: string; token: string }) {
+  const toast = useToast();
   const bill = view.bills.find((b) => b.request.id === requestId) ?? view.bills[0];
   const plan = bill?.line.plan;
   const today = new Date().toISOString().slice(0, 10);
@@ -508,6 +610,15 @@ function PayScreen({ view, requestId, go, send }: { view: NeighborView; requestI
   const pay = async () => {
     if (amount < 100) return;
     setPaying(true);
+    if (live) {
+      try {
+        window.location.assign(await startCheckout(roadId, token, { requestId: bill.request.id, amount, method }));
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "The payment page didn't open. Try again.", "error");
+        setPaying(false);
+      }
+      return;
+    }
     const id = uid("pay");
     // Fees, timestamps and the receipt number are set by the reducer; these placeholders are rebuilt there.
     const next = await send({
@@ -565,11 +676,18 @@ function PayScreen({ view, requestId, go, send }: { view: NeighborView; requestI
             { value: "card", label: <span className="flex items-center gap-2"><CreditCard className="h-5 w-5" aria-hidden /> Debit or credit card</span>, hint: `${view.road.settings.payerCoversFees ? `Fee ${money(computeCharge(amount, "card", true).total - amount)}` : "No fee to you"} · clears in about 2 business days` },
           ]}
         />
+        {live ? (
+          <p className="mt-4 rounded-xl bg-paper p-4 text-[0.95rem]">
+            {method === "ach"
+              ? "Next you'll pick your bank on Stripe's secure page and log in there, or type your account and routing numbers. Road Fund never sees your bank login."
+              : "Next you'll enter your card on Stripe's secure page."}
+          </p>
+        ) : (
         <div className="mt-4 rounded-xl bg-paper p-4">
           {method === "ach" ? (
             <div className="space-y-1 text-[0.95rem]">
               <p className="font-semibold">Test bank account ••6789</p>
-              <p className="text-stone">In the live product you pick your bank and log in through Stripe. Road Fund never sees your login.</p>
+              <p className="text-stone">With payments switched on, you pick your bank and log in through Stripe. Road Fund never sees your login.</p>
             </div>
           ) : (
             <div className="grid grid-cols-[1fr_5.5rem_4.5rem] gap-2">
@@ -580,9 +698,12 @@ function PayScreen({ view, requestId, go, send }: { view: NeighborView; requestI
             </div>
           )}
         </div>
-        <Field label={method === "ach" ? "Name on the account" : "Name on the card"} className="mt-4" htmlFor="pay-name">
-          <Input id="pay-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-        </Field>
+        )}
+        {!live && (
+          <Field label={method === "ach" ? "Name on the account" : "Name on the card"} className="mt-4" htmlFor="pay-name">
+            <Input id="pay-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          </Field>
+        )}
       </Card>
 
       <Card className="p-5">
@@ -604,13 +725,13 @@ function PayScreen({ view, requestId, go, send }: { view: NeighborView; requestI
             <dd className="tnum">{money(charge.total)}</dd>
           </div>
         </dl>
-        {method === "ach" && (
+        {method === "ach" && !live && (
           <div className="mt-4">
             <Checkbox checked={agree} onChange={setAgree} label="I authorize this one-time bank debit" hint={`${view.road.name} will debit ${money(charge.total)} once. You can dispute a debit with your bank.`} />
           </div>
         )}
-        <Button size="lg" block className="mt-4" loading={paying} disabled={amount < 100 || !name.trim() || (method === "ach" && !agree)} onClick={pay}>
-          Pay {money(charge.total)}
+        <Button size="lg" block className="mt-4" loading={paying} disabled={amount < 100 || (!live && (!name.trim() || (method === "ach" && !agree)))} onClick={pay}>
+          {live ? `Continue to pay ${money(charge.total)}` : `Pay ${money(charge.total)}`}
         </Button>
         <p className="mt-3 flex items-center justify-center gap-2 text-center text-[0.85rem] text-stone">
           <ShieldCheck className="h-4 w-4" aria-hidden /> Payments handled by Stripe. We never see your bank login.

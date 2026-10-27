@@ -47,6 +47,8 @@ export type Command =
   | { type: "road.plan"; plan: Plan }
   | { type: "account.connect"; bankName: string; last4: string }
   | { type: "account.disconnect" }
+  | { type: "account.stripe"; stripeAccountId: string; status: "pending" | "connected"; bankName: string; last4: string }
+  | { type: "road.billing"; plan: Plan; billing: NonNullable<Road["billing"]> }
   | { type: "account.opening"; amount: number; date: ISODate }
   | { type: "home.add"; home: Home }
   | { type: "home.update"; homeId: string; patch: Partial<Omit<Home, "id" | "token" | "joinedAt">> }
@@ -228,7 +230,41 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
         activity: log(road, ctx, `Connected road bank account (${cmd.bankName} ••${cmd.last4})`),
       };
     case "account.disconnect":
-      return { ...road, account: { ...road.account, status: "none", bankName: "", last4: "", connectedAt: null }, activity: log(road, ctx, "Disconnected the road bank account") };
+      return {
+        ...road,
+        account: { ...road.account, status: "none", stripeAccountId: null, bankName: "", last4: "", connectedAt: null },
+        activity: log(road, ctx, "Disconnected the road bank account"),
+      };
+    case "account.stripe": {
+      const was = road.account.status;
+      const becameLive = cmd.status === "connected" && was !== "connected";
+      return {
+        ...road,
+        account: {
+          ...road.account,
+          status: cmd.status,
+          stripeAccountId: cmd.stripeAccountId,
+          bankName: cmd.bankName || road.account.bankName,
+          last4: cmd.last4 || road.account.last4,
+          connectedAt: becameLive ? ctx.at : road.account.connectedAt,
+        },
+        activity:
+          becameLive
+            ? log(road, ctx, `Stripe turned on payments for the road account${cmd.bankName ? ` (${cmd.bankName} ••${cmd.last4})` : ""}`)
+            : was === "none"
+              ? log(road, ctx, "Started connecting the road's bank account with Stripe")
+              : road.activity,
+      };
+    }
+    case "road.billing": {
+      const names: Record<Plan, string> = { starter: "Starter (free)", roadfund: "Road Fund ($149/yr)", plus: "Road Fund Plus ($249/yr)" };
+      return {
+        ...road,
+        plan: cmd.plan,
+        billing: cmd.billing,
+        activity: road.plan !== cmd.plan ? log(road, ctx, `Plan is now ${names[cmd.plan]}`) : road.activity,
+      };
+    }
     case "account.opening":
       if (cmd.amount < 0) fail("Opening balance can't be negative.");
       return {
@@ -648,7 +684,7 @@ function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K
 
 export const COMMAND_TYPES = new Set<string>([
   "road.update", "road.split", "road.settings", "road.budget", "road.plan",
-  "account.connect", "account.disconnect", "account.opening",
+  "account.connect", "account.disconnect", "account.opening", "account.stripe", "road.billing",
   "home.add", "home.update", "home.remove", "home.contact", "captain.handoff",
   "request.create", "request.sent", "request.close", "request.reopen", "request.delete", "message.log",
   "payment.record", "payment.void",

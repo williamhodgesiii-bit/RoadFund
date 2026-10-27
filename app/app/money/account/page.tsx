@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Landmark, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ExternalLink, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import { AmountInput } from "@/components/amount-input";
 import { MoneyNav, PageHeader } from "@/components/app/common";
 import { Button, Callout, Card, CardHeader, Choice, Field, Input, Toggle } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { stripeAction } from "@/lib/client/backend";
 import { useRoad } from "@/lib/client/road-context";
 import { fmtDate, isoDate } from "@/lib/dates";
 import { computeCharge } from "@/lib/fees";
@@ -12,7 +15,7 @@ import { money } from "@/lib/money";
 import { accountSummary } from "@/lib/selectors";
 
 export default function AccountPage() {
-  const { road, dispatch, now } = useRoad();
+  const { road, dispatch, now, live } = useRoad();
   const acct = accountSummary(road, now);
   const [opening, setOpening] = useState(road.account.openingBalance);
   const [openingDate, setOpeningDate] = useState(road.account.openingDate ?? isoDate(now));
@@ -28,7 +31,9 @@ export default function AccountPage() {
         <Card>
           <CardHeader title="Road bank account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub="Through Stripe Connect. Money goes to the road, never to Road Fund." />
           <div className="space-y-4 p-5">
-            {road.account.status === "connected" ? (
+            {live ? (
+              <StripeAccount />
+            ) : road.account.status === "connected" ? (
               <>
                 <Callout tone="ok" title={`${road.account.bankName} ••${road.account.last4}`}>
                   Connected {road.account.connectedAt ? fmtDate(road.account.connectedAt) : ""}. Bank payments settle in about 4 business days, cards in about 2.
@@ -131,6 +136,94 @@ export default function AccountPage() {
           </div>
         </Card>
       </div>
+    </>
+  );
+}
+
+/** Real Stripe Connect onboarding: Stripe collects the road's details and bank, then pays out to it. */
+function StripeAccount() {
+  const { road, entry, replace } = useRoad();
+  const toast = useToast();
+  const router = useRouter();
+  const params = useSearchParams();
+  const [busy, setBusy] = useState<"connect" | "refresh" | "dashboard" | null>(null);
+  const [due, setDue] = useState<number | null>(null);
+  const handled = useRef(false);
+  const a = road.account;
+
+  const go = async (action: "connect" | "refresh" | "dashboard") => {
+    setBusy(action);
+    try {
+      const res = await stripeAction(entry, { action });
+      if (res.url) {
+        window.location.assign(res.url);
+        return;
+      }
+      if (res.road) replace(res.road);
+      if (typeof res.due === "number") setDue(res.due);
+      if (action === "refresh") toast(res.road?.account.status === "connected" ? "The road's account is ready for payments." : "Stripe is still reviewing the account.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Stripe didn't answer. Try again.", "error");
+    }
+    setBusy(null);
+  };
+
+  // Coming back from Stripe: check the account, or get a fresh link if the old one expired.
+  const back = params.get("stripe");
+  useEffect(() => {
+    if (!back || handled.current) return;
+    handled.current = true;
+    router.replace("/app/money/account");
+    void go(back === "refresh" ? "connect" : "refresh");
+  }, [back]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (a.status === "connected") {
+    return (
+      <>
+        <Callout tone="ok" title={a.bankName ? `${a.bankName} ••${a.last4}` : "Connected"}>
+          Neighbors can pay by bank or card. Stripe sends the money to this account: bank payments in about 4 business days, cards in about 2.
+        </Callout>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" loading={busy === "dashboard"} icon={<ExternalLink className="h-5 w-5" aria-hidden />} onClick={() => go("dashboard")}>
+            Payouts and bank details
+          </Button>
+          <Button variant="ghost" loading={busy === "refresh"} icon={<RefreshCw className="h-5 w-5" aria-hidden />} onClick={() => go("refresh")}>
+            Check status
+          </Button>
+        </div>
+        <p className="text-[0.9rem] text-stone">To change the bank account or the road&apos;s tax details, use Payouts and bank details. Stripe handles it there.</p>
+      </>
+    );
+  }
+  if (a.status === "pending") {
+    return (
+      <>
+        <Callout tone="warn" title="Almost there">
+          {due ? `Stripe still needs ${due} item${due === 1 ? "" : "s"} from you. ` : "Stripe is checking the road's details. This usually takes a few minutes, sometimes a day. "}
+          Neighbors can pay online once it&apos;s done. You can record checks and cash in the meantime.
+        </Callout>
+        <div className="flex flex-wrap gap-2">
+          <Button loading={busy === "connect"} icon={<ShieldCheck className="h-5 w-5" aria-hidden />} onClick={() => go("connect")}>
+            Finish with Stripe
+          </Button>
+          <Button variant="secondary" loading={busy === "refresh"} icon={<RefreshCw className="h-5 w-5" aria-hidden />} onClick={() => go("refresh")}>
+            Check status
+          </Button>
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <p>Connect an account in the road&apos;s name so neighbors can pay by bank or card. Stripe, the payment company behind many online stores, holds and moves the money.</p>
+      <ul className="list-disc space-y-1 pl-6 text-[0.95rem]">
+        <li>Takes about 10 minutes.</li>
+        <li>Have the road&apos;s bank account and routing number ready.</li>
+        <li>Stripe asks for the road&apos;s tax ID (EIN) if it has one, or the captain&apos;s details if it doesn&apos;t.</li>
+      </ul>
+      <Button block loading={busy === "connect"} icon={<ShieldCheck className="h-5 w-5" aria-hidden />} onClick={() => go("connect")}>
+        Connect with Stripe
+      </Button>
     </>
   );
 }

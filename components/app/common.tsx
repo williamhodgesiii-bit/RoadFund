@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, Check, CircleAlert, Clock, FileText, ImageOff, LoaderCircle, Lock, Sparkles } from "lucide-react";
+import { stripeAction, type StripeAction } from "@/lib/client/backend";
 import { useRoad } from "@/lib/client/road-context";
 import { fileUrl, saveFile } from "@/lib/client/files";
 import { shrinkImage } from "@/lib/client/image";
@@ -141,9 +142,61 @@ export function hasPlan(current: Plan, needed: Plan): boolean {
 }
 
 /** Shows the feature when the road's plan includes it; otherwise a plain upgrade card. */
+/**
+ * Buying a plan or the agreement package. With Stripe on, this goes through
+ * Stripe Checkout; otherwise (test deployments, the demo road) it's simulated.
+ */
+export function useBuy() {
+  const { road, entry, dispatch, live, status } = useRoad();
+  const toast = useToast();
+  const [busy, setBusy] = useState<"plan" | "agreement" | "portal" | null>(null);
+  const redirect = async (kind: "plan" | "agreement" | "portal", body: StripeAction) => {
+    setBusy(kind);
+    try {
+      const res = await stripeAction(entry, body);
+      if (res.url) return window.location.assign(res.url);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Checkout didn't open. Try again.", "error");
+    }
+    setBusy(null);
+  };
+  return {
+    busy,
+    live,
+    note: live ? (status.stripe === "test" ? "Stripe test mode: use card 4242 4242 4242 4242, any future date and any CVC." : "") : "Test mode: no charge.",
+    upgrade: (plan: Exclude<Plan, "starter">) =>
+      live ? redirect("plan", { action: "plan", plan }) : dispatch({ type: "road.plan", plan }, `Upgraded to ${PLAN_NAME[plan]}.`),
+    agreement: () => (live ? redirect("agreement", { action: "agreement" }) : dispatch({ type: "agreement.purchase" }, "Agreement package added (test mode, no charge).")),
+    portal: () => (road.billing?.customerId ? redirect("portal", { action: "portal" }) : undefined),
+  };
+}
+
+/** Handles the return from a Stripe purchase (?billing=cs_...). */
+export function BillingReturn() {
+  const { entry, replace, live } = useRoad();
+  const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const id = useSearchParams().get("billing");
+  const done = useRef(false);
+  useEffect(() => {
+    if (!id || !live || done.current) return;
+    done.current = true;
+    router.replace(pathname);
+    stripeAction(entry, { action: "confirm", sessionId: id })
+      .then((res) => {
+        if (res.road) replace(res.road);
+        toast(res.paid ? "Payment received. Thank you." : "Stripe is still confirming the payment. This page updates when it's done.");
+      })
+      .catch((e) => toast(e instanceof Error ? e.message : "Couldn't confirm the payment.", "error"));
+  }, [id, live]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 export function PlanGate({ needs, feature, children, pitch }: { needs: Plan; feature: string; pitch: React.ReactNode; children: React.ReactNode }) {
-  const { road, dispatch } = useRoad();
-  if (hasPlan(road.plan, needs)) return <>{children}</>;
+  const { road } = useRoad();
+  const buy = useBuy();
+  if (hasPlan(road.plan, needs) || needs === "starter") return <>{children}</>;
   return (
     <Card className="p-6">
       <div className="flex items-start gap-4">
@@ -154,10 +207,10 @@ export function PlanGate({ needs, feature, children, pitch }: { needs: Plan; fea
           <h2 className="text-[1.25rem] font-extrabold">{feature} is part of {PLAN_NAME[needs]}</h2>
           <div className="mt-1 text-stone">{pitch}</div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button onClick={() => dispatch({ type: "road.plan", plan: needs }, `Upgraded to ${PLAN_NAME[needs]}.`)}>
+            <Button loading={buy.busy === "plan"} onClick={() => buy.upgrade(needs)}>
               Upgrade to {PLAN_NAME[needs]} · {PLAN_PRICE[needs]}
             </Button>
-            <span className="text-[0.9rem] text-stone">Test mode: no charge. Usually paid from road dues.</span>
+            <span className="text-[0.9rem] text-stone">{buy.note || "Billed yearly. Most roads pay it from dues."}</span>
           </div>
         </div>
       </div>

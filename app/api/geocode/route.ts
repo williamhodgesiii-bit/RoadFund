@@ -7,7 +7,7 @@ const UA = "RoadFund/0.1 (private road dues app)";
 export async function GET(req: Request) {
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim().slice(0, 160);
   if (q.length < 3) return json({ results: [] });
-  if (!rateLimit(`geo:${clientIp(req)}`, 20, 60_000)) return limited();
+  if (!(await rateLimit(`geo:${clientIp(req)}`, 20, 60_000))) return limited();
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=us&limit=5&addressdetails=1&q=${encodeURIComponent(q)}`;
     const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en-US" }, next: { revalidate: 86_400 } });

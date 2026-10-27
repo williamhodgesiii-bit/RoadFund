@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Copy, Mail, MessageSquare, Printer, Send, Sparkles } from "lucide-react";
 import { Button, Callout, cx, Dialog, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { ai } from "@/lib/client/backend";
+import { ai, sendFromServer } from "@/lib/client/backend";
 import { copyText, mailtoHref, smsHref } from "@/lib/client/links";
 import { useRoad } from "@/lib/client/road-context";
 import { uid } from "@/lib/ids";
@@ -20,14 +20,17 @@ export interface Recipient {
   phone: string;
   email: string;
   smsOptIn: boolean;
+  emailOptIn?: boolean;
   values: Record<string, string>;
 }
 
+const usPhone = (p: string) => /^1?[2-9]\d{9}$/.test(p.replace(/\D/g, ""));
+
 /**
- * Sends one message to many neighbors. Neighbors who agreed to texts get them
- * automatically (simulated in test mode). Everyone else gets a one-tap button
- * that opens the captain's own Messages or email app with the text filled in,
- * or a printed letter.
+ * Sends one message to many neighbors. When email or texting is set up, Road
+ * Fund sends it: texts to neighbors who opted in, email to the rest. Anyone it
+ * can't reach gets a one-tap button that opens the captain's own Messages or
+ * email app with the text filled in, or a printed letter.
  */
 export function SendSheet({
   open,
@@ -48,14 +51,21 @@ export function SendSheet({
 }) {
   const toast = useToast();
   const aiOn = useAiOn();
-  const { road } = useRoad();
+  const { road, entry, status, replace } = useRoad();
   const [template, setTemplate] = useState(TOKEN_TEMPLATES[kind]);
   const [touched, setTouched] = useState<Record<string, Channel>>({});
+  const [serverSent, setServerSent] = useState<Set<string>>(() => new Set());
+  const [failed, setFailed] = useState<{ homeId: string; name: string; error: string }[]>([]);
+  const [sending, setSending] = useState(false);
+  const server = entry.where === "cloud" && !road.demo && (status.email || status.sms);
+  const reach = (r: Recipient): "text" | "email" | null =>
+    status.sms && r.smsOptIn && usPhone(r.phone) ? "text" : status.email && r.email.includes("@") && r.emailOptIn !== false ? "email" : null;
   const [rewriting, setRewriting] = useState(false);
   const [tone, setTone] = useState<"friendly" | "firm">(kind === "formal" || kind === "final" ? "firm" : "friendly");
 
-  const auto = recipients.filter((r) => r.smsOptIn && r.phone);
-  const manual = recipients.filter((r) => !(r.smsOptIn && r.phone));
+  const auto = server ? recipients.filter((r) => reach(r)) : recipients.filter((r) => r.smsOptIn && r.phone);
+  const manual = server ? recipients.filter((r) => !reach(r) || failed.some((f) => f.homeId === r.homeId)) : recipients.filter((r) => !(r.smsOptIn && r.phone));
+  const byText = auto.filter((r) => reach(r) === "text").length;
   const sample = recipients[0];
   const sampleText = sample ? fillTokens(template, sample.values) : template;
   const len = smsLength(`${sampleText} ${SMS_FOOTER}`);
@@ -71,6 +81,23 @@ export function SendSheet({
   };
 
   const sendAuto = async () => {
+    if (server) {
+      setSending(true);
+      try {
+        const res = await sendFromServer(entry, { kind, logKind, template, recipients: auto.map((r) => ({ homeId: r.homeId, values: r.values })) });
+        replace(res.road);
+        const ok = res.results.filter((x) => x.ok);
+        const bad = res.results.filter((x) => !x.ok);
+        setServerSent(new Set(ok.map((x) => x.homeId)));
+        ok.forEach((x) => mark(x.homeId, x.channel === "text" ? "text" : "email"));
+        setFailed(bad.map((x) => ({ homeId: x.homeId, name: recipients.find((r) => r.homeId === x.homeId)?.name ?? "A neighbor", error: x.error ?? "Didn't send" })));
+        toast(bad.length ? `Sent to ${ok.length}. ${bad.length} didn't go through; they're listed below.` : `Sent to ${ok.length} neighbor${ok.length === 1 ? "" : "s"}.`, bad.length ? "error" : undefined);
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Sending failed. Try again.", "error");
+      }
+      setSending(false);
+      return;
+    }
     const ok = await log(
       auto.map((r) => r.homeId),
       "text",
@@ -84,7 +111,8 @@ export function SendSheet({
   const finish = async () => {
     const byChannel = new Map<Channel, string[]>();
     for (const [homeId, ch] of Object.entries(touched)) {
-      if (auto.some((a) => a.homeId === homeId) && ch === "text") continue; // already logged
+      if (serverSent.has(homeId)) continue; // Road Fund logged it when it sent
+      if (!server && auto.some((a) => a.homeId === homeId) && ch === "text") continue; // already logged
       byChannel.set(ch, [...(byChannel.get(ch) ?? []), homeId]);
     }
     for (const [ch, ids] of byChannel) await log(ids, ch);
@@ -164,7 +192,34 @@ export function SendSheet({
           {sample && <p className="mt-2 rounded-xl bg-paper p-3 text-[0.95rem]">{sampleText}</p>}
         </div>
 
-        {auto.length > 0 && (
+        {auto.length > 0 && server && (
+          <Callout
+            tone="ok"
+            title={`Road Fund can reach ${auto.length} neighbor${auto.length === 1 ? "" : "s"}`}
+            action={
+              <Button size="sm" loading={sending} icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={auto.every((a) => serverSent.has(a.homeId))}>
+                {auto.every((a) => serverSent.has(a.homeId)) ? "Sent" : `Send to ${auto.length} now`}
+              </Button>
+            }
+          >
+            {[byText ? `${byText} by text` : null, auto.length - byText ? `${auto.length - byText} by email` : null].filter(Boolean).join(", ")}.{" "}
+            {byText ? <>Each text ends with &ldquo;{SMS_FOOTER}&rdquo; </> : null}
+            Emails come from {road.name} via Road Fund, and replies go to you.
+          </Callout>
+        )}
+        {failed.length > 0 && (
+          <Callout tone="warn" title="These didn't go through">
+            <ul className="list-disc pl-5">
+              {failed.map((f) => (
+                <li key={f.homeId}>
+                  {f.name}: {f.error}
+                </li>
+              ))}
+            </ul>
+            Use the buttons below to send them yourself.
+          </Callout>
+        )}
+        {auto.length > 0 && !server && (
           <Callout
             tone="ok"
             title={`${auto.length} neighbor${auto.length === 1 ? "" : "s"} agreed to texts`}
@@ -174,7 +229,7 @@ export function SendSheet({
               </Button>
             }
           >
-            Road Fund texts them from the road&apos;s number with &ldquo;{SMS_FOOTER}&rdquo; added. Test mode: nothing is actually sent.
+            Road Fund texts them with &ldquo;{SMS_FOOTER}&rdquo; added. {road.demo ? "Demo road: nothing is actually sent." : "Test mode: nothing is actually sent."}
           </Callout>
         )}
 

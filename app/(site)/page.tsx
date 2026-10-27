@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DeploymentNote } from "@/components/deployment-note";
 import {
   ArrowRight,
   Banknote,
@@ -211,7 +212,7 @@ export default function Landing() {
             </Faq>
             <Faq q="Who holds the money?">
               The road does. Each road gets its own payment account through Stripe Connect, and payments go straight to it. Road Fund never holds the road&apos;s money.
-              In this test deployment, bank connections and payments are simulated.
+              <DeploymentNote variant="faq" className="mt-2" />
             </Faq>
             <Faq q="Does my buyer's lender require a road maintenance agreement?">
               It depends on the loan. Conventional loans sold to Fannie Mae generally need one unless your state has a default road law. FHA, VA and USDA loans do not.

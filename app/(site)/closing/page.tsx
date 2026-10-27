@@ -21,7 +21,7 @@ export default function ClosingPage() {
       <div className="mt-12 grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         <section id="request" className="scroll-mt-24">
           <h2 className="text-[1.6rem] font-black">Request a Road Status Letter</h2>
-          <p className="mt-2 text-stone">Free to request. The road captain is notified right away. The letter fee is $75, usually paid by the seller or at closing.</p>
+          <p className="mt-2 text-stone">The road captain is notified right away. The letter fee is $75, and most title companies pass it through to the seller at closing.</p>
           <div className="mt-6">
             <LetterRequestForm />
           </div>

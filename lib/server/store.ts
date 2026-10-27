@@ -5,16 +5,22 @@ import { roadCode, secretToken } from "../ids.ts";
 import type { Road } from "../types.ts";
 import { kv, kvCompareAndSet, kvGetJSON } from "./kv.ts";
 
-const K = {
+export const K = {
   road: (id: string) => `rf:road:${id}`,
   rev: (id: string) => `rf:rev:${id}`,
-  auth: (id: string) => `rf:auth:${id}`,
+  /** Set of SHA-256 hashes of captain keys, one per signed-in device. */
+  keys: (id: string) => `rf:keys:${id}`,
+  /** Legacy single captain key hash (roads created before multi-device keys). */
+  legacyAuth: (id: string) => `rf:auth:${id}`,
   code: (code: string) => `rf:code:${code}`,
   letter: (code: string) => `rf:letter:${code}`,
   file: (id: string) => `rf:file:${id}`,
+  allRoads: () => "rf:roads:all",
+  captain: (email: string) => `rf:captain:${email.trim().toLowerCase()}`,
+  stripeAccount: (acct: string) => `rf:acct:${acct}`,
 };
 
-async function sha256(text: string): Promise<string> {
+export async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -25,6 +31,30 @@ function serialize(road: Road): string {
   const json = JSON.stringify(road);
   if (json.length > MAX_DOC_BYTES) throw new CommandError("This road's record is too large to save. Remove old photos or documents.", 413);
   return json;
+}
+
+export function captainEmail(road: Road): string | null {
+  const email = road.homes.find((h) => h.id === road.captainHomeId)?.email.trim().toLowerCase();
+  return email && email.includes("@") ? email : null;
+}
+
+/** Keeps lookup keys in step with the road: captain email, Stripe account, letter codes. */
+async function syncIndexes(id: string, before: Road | null, after: Road | null): Promise<void> {
+  const oldEmail = before ? captainEmail(before) : null;
+  const newEmail = after ? captainEmail(after) : null;
+  if (oldEmail && oldEmail !== newEmail) await kv("SREM", K.captain(oldEmail), id);
+  if (newEmail && newEmail !== oldEmail) await kv("SADD", K.captain(newEmail), id);
+
+  const oldAcct = before?.account.stripeAccountId ?? null;
+  const newAcct = after?.account.stripeAccountId ?? null;
+  if (oldAcct && oldAcct !== newAcct) await kv("DEL", K.stripeAccount(oldAcct));
+  if (newAcct && newAcct !== oldAcct) await kv("SET", K.stripeAccount(newAcct), id);
+
+  if (after) {
+    const known = new Set(before?.letters.map((l) => l.code) ?? []);
+    // SETNX: an imported copy must never take over verification of another road's letters.
+    for (const l of after.letters) if (!known.has(l.code)) await kv("SETNX", K.letter(l.code), id);
+  }
 }
 
 export async function createRoad(road: Road): Promise<{ road: Road; captainKey: string }> {
@@ -40,13 +70,24 @@ export async function createRoad(road: Road): Promise<{ road: Road; captainKey: 
     code = roadCode();
     if (i === 4) throw new CommandError("Couldn't reserve a road code. Try again.", 503);
   }
-  const final = { ...road, code };
-  const captainKey = secretToken();
-  await kv("SET", K.auth(road.id), await sha256(captainKey));
+  // A new road never inherits a Stripe account from an imported backup.
+  const final: Road = { ...road, code, account: { ...road.account, stripeAccountId: null, status: road.account.stripeAccountId ? "none" : road.account.status } };
+  const captainKey = await issueCaptainKey(road.id);
   await kv("SET", K.road(road.id), serialize(final));
-  // SETNX: an imported copy must never take over verification of the original road's letters.
-  for (const l of final.letters) await kv("SETNX", K.letter(l.code), road.id);
+  await kv("SADD", K.allRoads(), road.id);
+  await syncIndexes(road.id, null, final);
   return { road: final, captainKey };
+}
+
+/** A new secret for one device. Only its hash is stored. */
+export async function issueCaptainKey(roadId: string): Promise<string> {
+  const key = secretToken();
+  await kv("SADD", K.keys(roadId), await sha256(key));
+  return key;
+}
+
+export async function revokeCaptainKey(roadId: string, key: string): Promise<void> {
+  await kv("SREM", K.keys(roadId), await sha256(key));
 }
 
 export async function loadRoad(id: string): Promise<{ road: Road; rev: number } | null> {
@@ -56,9 +97,11 @@ export async function loadRoad(id: string): Promise<{ road: Road; rev: number } 
 }
 
 export async function checkCaptain(id: string, key: string | null): Promise<boolean> {
-  if (!key) return false;
-  const stored = await kv<string | null>("GET", K.auth(id));
-  return !!stored && stored === (await sha256(key));
+  if (!key || key.length < 16) return false;
+  const hash = await sha256(key);
+  if ((await kv<number>("SISMEMBER", K.keys(id), hash)) === 1) return true;
+  const legacy = await kv<string | null>("GET", K.legacyAuth(id));
+  return !!legacy && legacy === hash;
 }
 
 /**
@@ -74,17 +117,30 @@ export async function mutate(id: string, build: (road: Road) => { commands: Comm
     if (next === current.road) return next;
     const ok = await kvCompareAndSet(K.road(id), K.rev(id), current.rev, serialize(next));
     if (ok) {
-      const before = new Set(current.road.letters.map((l) => l.code));
-      for (const l of next.letters) if (!before.has(l.code)) await kv("SET", K.letter(l.code), id);
+      await syncIndexes(id, current.road, next);
       return next;
     }
-    await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 40 * (attempt + 1) + Math.random() * 40));
   }
   throw new CommandError("Someone else is updating this road right now. Try again.", 409);
 }
 
 export async function deleteRoad(id: string, road: Road): Promise<void> {
-  await kv("DEL", K.road(id), K.rev(id), K.auth(id), K.code(road.code), ...road.letters.map((l) => K.letter(l.code)));
+  await syncIndexes(id, road, null);
+  await kv("DEL", K.road(id), K.rev(id), K.keys(id), K.legacyAuth(id), K.code(road.code), ...road.letters.map((l) => K.letter(l.code)));
+  await kv("SREM", K.allRoads(), id);
+}
+
+export async function allRoadIds(): Promise<string[]> {
+  return (await kv<string[]>("SMEMBERS", K.allRoads())) ?? [];
+}
+
+export async function roadIdsForCaptain(email: string): Promise<string[]> {
+  return (await kv<string[]>("SMEMBERS", K.captain(email))) ?? [];
+}
+
+export async function roadIdByStripeAccount(acct: string): Promise<string | null> {
+  return kv<string | null>("GET", K.stripeAccount(acct));
 }
 
 export async function roadIdByCode(code: string): Promise<string | null> {
@@ -93,6 +149,11 @@ export async function roadIdByCode(code: string): Promise<string | null> {
 
 export async function roadIdByLetter(code: string): Promise<string | null> {
   return kv<string | null>("GET", K.letter(code));
+}
+
+/** One-time markers (e.g. "reminder sent") so scheduled jobs never repeat themselves. */
+export async function once(key: string, ttlSeconds: number): Promise<boolean> {
+  return (await kv<string | null>("SET", `rf:once:${key}`, "1", "NX", "EX", ttlSeconds)) === "OK";
 }
 
 export interface StoredFile {

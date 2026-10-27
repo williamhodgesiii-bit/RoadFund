@@ -9,7 +9,7 @@ type Params = { params: Promise<{ code: string }> };
 export async function GET(req: Request, { params }: Params) {
   try {
     if (!kvEnabled) return json({ letter: null, cloud: false });
-    if (!rateLimit(`verify:${clientIp(req)}`, 30, 60_000)) return limited();
+    if (!(await rateLimit(`verify:${clientIp(req)}`, 30, 60_000))) return limited();
     const raw = normalizeCode((await params).code);
     if (raw.length !== 8) return json({ letter: null, cloud: true });
     const code = `${raw.slice(0, 4)}-${raw.slice(4)}`;

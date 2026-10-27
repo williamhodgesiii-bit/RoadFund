@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DeploymentNote } from "@/components/deployment-note";
 import { Check } from "lucide-react";
 import { FeeCalculator } from "@/components/fee-calculator";
 import { ButtonLink } from "@/components/ui";
@@ -111,9 +112,7 @@ export default function PricingPage() {
         <FeeCalculator />
       </div>
 
-      <p className="mt-10 rounded-xl bg-paper-2 px-4 py-3 text-[0.95rem] text-stone">
-        Test deployment: plan upgrades and purchases are simulated, and you can switch plans freely from Settings.
-      </p>
+      <DeploymentNote variant="pricing" className="mt-10 rounded-xl bg-paper-2 px-4 py-3 text-[0.95rem] text-stone" />
     </div>
   );
 }

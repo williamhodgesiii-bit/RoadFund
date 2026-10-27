@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Search } from "lucide-react";
-import { lookupRoad, requestLetter, type RoadLookup } from "@/lib/client/backend";
+import { confirmLetterPayment, lookupRoad, requestLetter, type RoadLookup } from "@/lib/client/backend";
 import { stateName } from "@/lib/states";
 import type { Requester } from "@/lib/types";
 import { Button, Callout, Field, Input, Select, Textarea } from "./ui";
@@ -21,6 +21,20 @@ export function LetterRequestForm() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [paidFor, setPaidFor] = useState<{ roadName: string; email: string } | null>(null);
+
+  // Back from paying the letter fee.
+  useEffect(() => {
+    const paid = new URLSearchParams(window.location.search).get("paid");
+    if (!paid) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    confirmLetterPayment(paid)
+      .then((res) => {
+        if (res.ok) setPaidFor({ roadName: res.roadName ?? "the road", email: res.email ?? "" });
+        else setError("The payment hasn't finished yet. If you were charged, the request goes through automatically within a few minutes.");
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "We couldn't confirm the payment."));
+  }, []);
 
   const find = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +62,8 @@ export function LetterRequestForm() {
     setSending(true);
     setError(null);
     try {
-      await requestLetter({ lookup: road, homeId: property?.id ?? null, propertyAddress, closingDate: closingDate || null, note, requester: req });
+      const res = await requestLetter({ lookup: road, homeId: property?.id ?? null, propertyAddress, closingDate: closingDate || null, note, requester: req });
+      if (res.url) return window.location.assign(res.url);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send the request.");
@@ -56,6 +71,17 @@ export function LetterRequestForm() {
       setSending(false);
     }
   };
+
+  if (paidFor) {
+    return (
+      <Callout tone="ok" title="Paid. Your request is with the road captain.">
+        <p>
+          {paidFor.roadName} has your request and your $75 payment. {paidFor.email ? `We'll email the letter to ${paidFor.email} when it's issued. ` : ""}If the road can&apos;t
+          issue it, the fee is refunded in full.
+        </p>
+      </Callout>
+    );
+  }
 
   if (done && road) {
     return (
@@ -140,9 +166,13 @@ export function LetterRequestForm() {
           </Field>
           {error && <Callout tone="danger">{error}</Callout>}
           <Button type="submit" loading={sending} block>
-            Request the letter
+            {road.payFirst ? "Pay $75 and send the request" : "Request the letter"}
           </Button>
-          <p className="text-[0.9rem] text-stone">The $75 letter fee is usually paid by the seller or through closing.</p>
+          <p className="text-[0.9rem] text-stone">
+            {road.payFirst
+              ? "You pay the $75 fee by card on Stripe's secure page. It's refunded in full if the road can't issue the letter. Most title companies pass it through to the seller at closing."
+              : "The $75 letter fee is usually paid by the seller or through closing."}
+          </p>
         </form>
       )}
     </div>

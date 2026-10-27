@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { applyAll, CommandError, type Command } from "../commands";
 import type { Road } from "../types";
-import { captainCtx, getStatus, loadRoad, sendCommands, type Status } from "./backend";
+import { captainCtx, getStatus, loadRoad, OFFLINE_STATUS, paysForReal, sendCommands, type Status } from "./backend";
 import { renameEntry, type RoadEntry } from "./registry";
 import { useToast } from "@/components/toast";
 
@@ -17,6 +17,10 @@ interface RoadState {
   dispatch: (commands: Command | Command[], success?: string) => Promise<boolean>;
   saving: boolean;
   refresh: () => Promise<void>;
+  /** Take a copy of the road the server returned from a non-command action (Stripe, sending). */
+  replace: (road: Road) => void;
+  /** True when this road takes real payments through Stripe. */
+  live: boolean;
 }
 
 const Ctx = createContext<RoadState | null>(null);
@@ -29,7 +33,7 @@ export function useRoad(): RoadState {
 
 export function RoadProvider({ entry, initial, children }: { entry: RoadEntry; initial: Road; children: React.ReactNode }) {
   const [road, setRoad] = useState(initial);
-  const [status, setStatus] = useState<Status>({ cloud: entry.where === "cloud", ai: false });
+  const [status, setStatus] = useState<Status>({ ...OFFLINE_STATUS, cloud: entry.where === "cloud" });
   const [now, setNow] = useState(() => new Date());
   const [saving, setSaving] = useState(false);
   const toast = useToast();
@@ -112,6 +116,8 @@ export function RoadProvider({ entry, initial, children }: { entry: RoadEntry; i
     [entry, toast],
   );
 
-  const value = useMemo(() => ({ road, entry, status, now, dispatch, saving, refresh }), [road, entry, status, now, dispatch, saving, refresh]);
+  const replace = useCallback((next: Road) => setRoad(next), []);
+  const live = paysForReal(status, road, entry);
+  const value = useMemo(() => ({ road, entry, status, now, dispatch, saving, refresh, replace, live }), [road, entry, status, now, dispatch, saving, refresh, replace, live]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

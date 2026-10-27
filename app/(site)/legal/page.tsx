@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DeploymentNote } from "@/components/deployment-note";
 
 export const metadata: Metadata = { title: "Terms, privacy and disclaimers" };
 
@@ -6,20 +7,17 @@ export default function LegalPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
       <h1 className="text-[2.2rem] font-black">Terms, privacy and disclaimers</h1>
-      <p className="mt-2 text-stone">Plain-English summary for this test deployment.</p>
-
-      <Section title="This is a test deployment">
-        Payments, bank connections, texts, emails, attorney review, notary and recording are simulated. No money moves and no messages are sent by Road Fund. Links that
-        open your phone&apos;s text or email app send from your own phone.
-      </Section>
+      <p className="mt-2 text-stone">The plain-English version.</p>
+      <DeploymentNote variant="legal" className="mt-6 rounded-xl border border-sign/50 bg-sign-50 px-4 py-3 text-sign-ink" />
       <Section title="Not a law firm">
         Road Fund is software. It fills in templates with your road&apos;s facts and explains them in plain English. It does not give legal advice, decide legal
         questions or recommend lawyers. A licensed attorney in your state should review any agreement before anyone signs. Attorney listings, when offered, are
         paid advertising at a flat fee and never a per-case referral fee.
       </Section>
       <Section title="Who holds the money">
-        In the live product, each road gets its own payment account through Stripe Connect and neighbors&apos; payments go straight to it. Road Fund never holds a
-        road&apos;s money.
+        Each road gets its own payment account through Stripe Connect and neighbors&apos; payments go straight to it. Road Fund never holds a road&apos;s money.
+        Road Fund keeps a $1 fee per online payment; card and bank processing fees go to Stripe. Refunds and disputes follow Stripe&apos;s rules and the road&apos;s
+        own decision.
       </Section>
       <Section title="Texts">
         Neighbors only get texts after they agree to them. Every text says how to stop: reply STOP. Opting out takes effect right away and is recorded on the road.

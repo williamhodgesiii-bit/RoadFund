@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       },
       {
         // Neighbor and captain links carry access tokens; keep them out of search and referrers.
-        source: "/(n|app|start|letter)/:path*",
+        source: "/(n|app|start|letter|signin)/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
           { key: "Referrer-Policy", value: "no-referrer" },

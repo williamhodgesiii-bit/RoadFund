@@ -95,7 +95,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function Chrome({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { road, entry, saving } = useRoad();
+  const { road, entry, saving, live, status } = useRoad();
+  const banner = road.demo
+    ? "Demo road: try anything. Nothing here is real."
+    : live
+      ? status.stripe === "test"
+        ? "Stripe test mode: no real money moves."
+        : null
+      : "Test mode: payments and bank connections are simulated.";
   const me = road.homes.find((h) => h.id === road.captainHomeId);
 
   return (
@@ -139,7 +146,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
             <Settings className="h-5 w-5" aria-hidden /> Settings
           </Link>
           <p className="px-3 pt-2 text-[0.8rem] text-stone">
-            {entry.where === "cloud" ? "Saved to the cloud" : "Saved in this browser"} · test mode
+            {entry.where === "cloud" ? "Saved to the cloud" : "Saved in this browser"}
           </p>
         </div>
       </aside>
@@ -162,10 +169,17 @@ function Chrome({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </header>
-        <div className="no-print border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.85rem] text-sign-ink">
-          Test mode: payments, bank connections and texts are simulated.
-          {saving && <span className="ml-2 inline-flex items-center gap-1 font-semibold"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden /> Saving</span>}
-        </div>
+        {banner && (
+          <div className="no-print border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.85rem] text-sign-ink">
+            {banner}
+            {saving && <span className="ml-2 inline-flex items-center gap-1 font-semibold"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden /> Saving</span>}
+          </div>
+        )}
+        {!banner && saving && (
+          <div role="status" className="no-print fixed bottom-24 right-4 z-50 inline-flex items-center gap-1.5 rounded-full bg-charcoal px-3 py-1.5 text-[0.85rem] font-semibold text-white md:bottom-4">
+            <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> Saving
+          </div>
+        )}
         <main id="main" className="mx-auto max-w-5xl px-4 pb-32 pt-6 md:px-8 md:pb-16 md:pt-8 print:max-w-none print:p-0">
           <Suspense>{children}</Suspense>
         </main>
@@ -251,9 +265,11 @@ function NoRoad() {
           Open the demo road
         </ButtonLink>
       </div>
-      <p className="mt-6 text-stone">
-        Captain on another device? Open the captain link you saved from Settings on that device, or ask the current captain to hand off the role.
-      </p>
+      <h2 className="mt-10 text-[1.3rem] font-extrabold">Already set up a road on another device?</h2>
+      <p className="mt-1 text-stone">Sign in with your email, or open the captain link you copied from Settings.</p>
+      <ButtonLink href="/signin" variant="ghost" className="mt-3 self-start">
+        Captain sign-in
+      </ButtonLink>
     </main>
   );
 }

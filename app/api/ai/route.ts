@@ -19,7 +19,7 @@ const cap = (s: unknown, n: number) => String(s ?? "").slice(0, n);
 export async function POST(req: Request) {
   try {
     if (!aiEnabled) throw new CommandError("AI is off for this deployment. Add ANTHROPIC_API_KEY to turn it on.", 501);
-    if (!rateLimit(`ai:${clientIp(req)}`, 20, 10 * 60_000)) return limited();
+    if (!(await rateLimit(`ai:${clientIp(req)}`, 20, 10 * 60_000))) return limited();
     const body = await readJSON<Body>(req, 4_400_000);
 
     switch (body.task) {
