@@ -41,12 +41,7 @@ export default function RoadPage() {
       const pos = positions[h.id]?.position ?? h.position;
       return pos ? { id: h.id, position: pos, label: String(i + 1), title: `${h.label}${h.owners ? ` · ${h.owners}` : ""}`, tone: h.id === placing ? "selected" : h.id === road.captainHomeId ? "me" : "home" } : null;
     })
-    .filter((x): x is Pin => !!x)
-    .concat(
-      road.work
-        .filter((w) => w.kind === "damage" && w.position && w.status !== "fixed")
-        .map((w): Pin => ({ id: w.id, position: w.position!, label: "!", title: `Damage: ${w.title}`, tone: "damage" })),
-    );
+    .filter((x): x is Pin => !!x);
 
   const saveMap = async () => {
     const cmds: Command[] = [];
@@ -143,7 +138,7 @@ export default function RoadPage() {
       </Card>
 
       <Card className="mb-6">
-        <CardHeader title="How costs are split" sub="Used for new dues requests. Requests already sent keep the split they were sent with." />
+        <CardHeader title="How costs are split" sub="Used for new bills. Bills already sent keep the split they were sent with." />
         <div className="space-y-5 p-5">
           <Choice
             name="road-split"
@@ -230,7 +225,7 @@ export default function RoadPage() {
                     cmds.push({ type: "home.update", homeId: h.id, patch: { distanceFt: h.distanceFt, frontageFt: h.frontageFt, customPct: h.customPct, vacant: h.vacant } });
                   }
                 }
-                dispatch(cmds, "Split saved. It applies to the next dues request.");
+                dispatch(cmds, "Split saved. It applies to the next bill.");
               }}
             >
               Save split

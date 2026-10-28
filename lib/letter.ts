@@ -1,3 +1,4 @@
+import { LETTER_FEE, LETTER_VALID_DAYS } from "./pricing.ts";
 import { addDays, isoDate } from "./dates.ts";
 import { letterCode, uid } from "./ids.ts";
 import { defaultLaw } from "./states.ts";
@@ -13,8 +14,6 @@ import {
 } from "./selectors.ts";
 import type { LetterSnapshot, Requester, Road, StatusLetter } from "./types.ts";
 
-export const LETTER_FEE = 7_500;
-export const LETTER_VALID_DAYS = 30;
 
 export function buildSnapshot(road: Road, homeId: string, now: Date): LetterSnapshot {
   const home = road.homes.find((h) => h.id === homeId);
@@ -74,6 +73,8 @@ export function buildSnapshot(road: Road, homeId: string, now: Date): LetterSnap
     lengthFt: road.lengthFt,
     surface: road.surface,
     homesCount: road.homes.length,
+    easementRef: road.easementRef?.trim() || null,
+    allWeather: road.allWeather ?? null,
     property: { label: home.label, address: home.address, owners: home.owners },
     agreement: {
       status: a.step === "recorded" ? "recorded" : signed === road.homes.length && road.homes.length > 0 && a.step !== "draft" ? "signed" : a.step === "draft" && !a.review ? "none" : "in-progress",
@@ -101,6 +102,17 @@ export function buildSnapshot(road: Road, homeId: string, now: Date): LetterSnap
     insuranceOnFile: road.docs.some((d) => d.kind === "insurance"),
     captain: { name: displayName(cap), phone: cap?.phone ?? "", email: cap?.email ?? "" },
   };
+}
+
+/** A letter can get one free updated copy within this many days, for closings that slip. */
+export function canUpdate(road: Road, letter: StatusLetter, now: Date): boolean {
+  if (letter.updateOf) return false;
+  if (road.letters.some((l) => l.updateOf === letter.id)) return false;
+  return now.getTime() - Date.parse(letter.createdAt) <= LETTER_VALID_DAYS * 86_400_000;
+}
+
+export function updatedLetter(road: Road, letter: StatusLetter, now: Date): StatusLetter {
+  return { ...newLetter(road, letter, now), fee: 0, updateOf: letter.id };
 }
 
 export function newLetter(

@@ -2,6 +2,7 @@ import "server-only";
 
 import { applyAll, CommandError, type Command, type Ctx } from "../commands.ts";
 import { roadCode, secretToken } from "../ids.ts";
+import { normalizeRoad } from "../migrate.ts";
 import type { Road } from "../types.ts";
 import { kv, kvCompareAndSet, kvGetJSON } from "./kv.ts";
 
@@ -71,7 +72,7 @@ export async function createRoad(road: Road): Promise<{ road: Road; captainKey: 
     if (i === 4) throw new CommandError("Couldn't reserve a road code. Try again.", 503);
   }
   // A new road never inherits a Stripe account from an imported backup.
-  const final: Road = { ...road, code, account: { ...road.account, stripeAccountId: null, status: road.account.stripeAccountId ? "none" : road.account.status } };
+  const final: Road = { ...normalizeRoad(road), code, account: { ...road.account, stripeAccountId: null, status: road.account.stripeAccountId ? "none" : road.account.status } };
   const captainKey = await issueCaptainKey(road.id);
   await kv("SET", K.road(road.id), serialize(final));
   await kv("SADD", K.allRoads(), road.id);
@@ -93,7 +94,7 @@ export async function revokeCaptainKey(roadId: string, key: string): Promise<voi
 export async function loadRoad(id: string): Promise<{ road: Road; rev: number } | null> {
   const [raw, rev] = await kv<[string | null, string | null]>("MGET", K.road(id), K.rev(id));
   if (!raw) return null;
-  return { road: JSON.parse(raw) as Road, rev: Number(rev ?? 1) };
+  return { road: normalizeRoad(JSON.parse(raw) as Road), rev: Number(rev ?? 1) };
 }
 
 export async function checkCaptain(id: string, key: string | null): Promise<boolean> {

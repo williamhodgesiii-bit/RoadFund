@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Camera, Check, CircleAlert, Clock, FileText, ImageOff, LoaderCircle, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, Camera, Check, CircleAlert, Clock, FileText, ImageOff, LoaderCircle, Lock } from "lucide-react";
 import { stripeAction, type StripeAction } from "@/lib/client/backend";
 import { useRoad } from "@/lib/client/road-context";
 import { fileUrl, saveFile } from "@/lib/client/files";
 import { shrinkImage } from "@/lib/client/image";
 import type { LineStatus } from "@/lib/selectors";
+import { money } from "@/lib/money";
+import { PLAN_NAME, perHomeText, planPrice } from "@/lib/pricing";
 import type { Plan } from "@/lib/types";
 import { Button, Card, cx, Pill } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -65,9 +67,8 @@ export function MoneyNav() {
       items={[
         { href: "/app/money", label: "Dues" },
         { href: "/app/money/bills", label: "Bills", badge: bills },
-        { href: "/app/money/ledger", label: "Ledger" },
-        { href: "/app/money/account", label: "Account" },
-        { href: "/app/money/taxes", label: "Taxes" },
+        { href: "/app/money/ledger", label: "Payment record" },
+        { href: "/app/money/account", label: "Bank account" },
       ]}
     />
   );
@@ -81,9 +82,7 @@ export function RoadNav() {
       items={[
         { href: "/app/road", label: "Map & shares" },
         { href: "/app/road/work", label: "Work log", badge: open },
-        { href: "/app/road/bids", label: "Bids" },
         { href: "/app/road/contractors", label: "Contractors" },
-        { href: "/app/road/reserve", label: "Savings plan" },
       ]}
     />
   );
@@ -116,7 +115,7 @@ const STATUS_TONE: Record<LineStatus, { tone: "paid" | "processing" | "late" | "
 
 const STATUS_LABEL: Record<LineStatus, string> = {
   paid: "Paid",
-  processing: "Paid · clearing",
+  processing: "Paid · on its way",
   partial: "Part paid",
   plan: "On a plan",
   due: "Not paid yet",
@@ -133,15 +132,10 @@ export function StatusPill({ status }: { status: LineStatus }) {
   );
 }
 
-const PLAN_RANK: Record<Plan, number> = { starter: 0, roadfund: 1, plus: 2 };
-const PLAN_NAME: Record<Plan, string> = { starter: "Starter", roadfund: "Road Fund", plus: "Road Fund Plus" };
-const PLAN_PRICE: Record<Plan, string> = { starter: "Free", roadfund: "$149/yr", plus: "$249/yr" };
-
 export function hasPlan(current: Plan, needed: Plan): boolean {
-  return PLAN_RANK[current] >= PLAN_RANK[needed];
+  return needed === "starter" || current === "roadfund";
 }
 
-/** Shows the feature when the road's plan includes it; otherwise a plain upgrade card. */
 /**
  * Buying a plan or the agreement package. With Stripe on, this goes through
  * Stripe Checkout; otherwise (test deployments, the demo road) it's simulated.
@@ -164,8 +158,7 @@ export function useBuy() {
     busy,
     live,
     note: live ? (status.stripe === "test" ? "Stripe test mode: use card 4242 4242 4242 4242, any future date and any CVC." : "") : "Test mode: no charge.",
-    upgrade: (plan: Exclude<Plan, "starter">) =>
-      live ? redirect("plan", { action: "plan", plan }) : dispatch({ type: "road.plan", plan }, `Upgraded to ${PLAN_NAME[plan]}.`),
+    upgrade: () => (live ? redirect("plan", { action: "plan" }) : dispatch({ type: "road.plan", plan: "roadfund" }, "Upgraded to Road Fund.")),
     agreement: () => (live ? redirect("agreement", { action: "agreement" }) : dispatch({ type: "agreement.purchase" }, "Agreement package added (test mode, no charge).")),
     portal: () => (road.billing?.customerId ? redirect("portal", { action: "portal" }) : undefined),
   };
@@ -196,7 +189,7 @@ export function BillingReturn() {
 export function PlanGate({ needs, feature, children, pitch }: { needs: Plan; feature: string; pitch: React.ReactNode; children: React.ReactNode }) {
   const { road } = useRoad();
   const buy = useBuy();
-  if (hasPlan(road.plan, needs) || needs === "starter") return <>{children}</>;
+  if (hasPlan(road.plan, needs)) return <>{children}</>;
   return (
     <Card className="p-6">
       <div className="flex items-start gap-4">
@@ -204,13 +197,13 @@ export function PlanGate({ needs, feature, children, pitch }: { needs: Plan; fea
           <Lock className="h-6 w-6" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[1.25rem] font-extrabold">{feature} is part of {PLAN_NAME[needs]}</h2>
+          <h2 className="text-[1.25rem] font-extrabold">{feature} comes with the Road Fund plan</h2>
           <div className="mt-1 text-stone">{pitch}</div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button loading={buy.busy === "plan"} onClick={() => buy.upgrade(needs)}>
-              Upgrade to {PLAN_NAME[needs]} · {PLAN_PRICE[needs]}
+            <Button loading={buy.busy === "plan"} onClick={() => buy.upgrade()}>
+              Upgrade for {money(planPrice(road.homes.length)).replace(".00", "")} a year
             </Button>
-            <span className="text-[0.9rem] text-stone">{buy.note || "Billed yearly. Most roads pay it from dues."}</span>
+            <span className="text-[0.95rem] text-stone">{buy.note || `That's ${perHomeText(road.homes.length)}. Most roads pay it from dues.`}</span>
           </div>
         </div>
       </div>
@@ -305,14 +298,6 @@ export function UploadButton({
       {busy ? "Saving…" : label}
       <input type="file" accept={accept} multiple={multiple} capture={capture ? "environment" : undefined} className="sr-only" onChange={(e) => handle(e.target.files)} />
     </label>
-  );
-}
-
-export function AiBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-lake-50 px-1.5 py-0.5 text-[0.75rem] font-bold text-lake">
-      <Sparkles className="h-3 w-3" aria-hidden /> AI
-    </span>
   );
 }
 

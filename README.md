@@ -6,6 +6,20 @@ Dues, records and closing letters for private roads with 3 to 30 homes. Built fr
 - **Neighbors** open a link (no app, no password), see what they owe and why, pay by bank or card, vote, sign the agreement, and see where the money went.
 - **Title companies and lenders** request a letter with the road code and verify any letter by its code.
 
+## What it does, and for whom
+
+Built around what private-road neighbors actually struggle with (see `docs/strategy.md`): a neighbor who won't pay, nothing in writing, one person fronting the money, and a house sale that needs proof the road is kept up.
+
+| | Free | Road Fund ($79/yr up to 8 homes, $149/yr for 9 to 30) |
+| --- | --- | --- |
+| Bills to neighbors | One a year, with automatic reminders | As many as needed, including project bills after a vote |
+| Paying | Bank, card or check; "I mailed a check" stops reminders | Same |
+| Late payers | Reminders | Friendly note, dated letters to mail, payment plans, small-claims packet |
+| Agreement | Drafted from the road's data, signed from each owner's phone | Same |
+| Contractors, votes, work log, documents | | Included |
+
+Road Status Letters cost the requester $150 (one free update within 30 days); the road is never charged. Optional agreement help is $249 plus outside fees at cost. Online payments carry a $1 fee plus the bank or card charge; checks are free.
+
 ## Deploy on Vercel
 
 1. Import this repository in Vercel. The Next.js preset is detected; no settings to change.
@@ -15,11 +29,11 @@ Dues, records and closing letters for private roads with 3 to 30 homes. Built fr
 
 | Feature | Variables | What changes |
 | --- | --- | --- |
-| Real payments | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Each road connects its own Stripe Express account. Neighbors pay through Stripe Checkout by bank (instant verification) or card, as destination charges: the money lands in the road's account and Road Fund keeps the $1 fee plus processing. Plans are yearly subscriptions; the agreement package and the $75 letter fee are one-time payments. Declining a paid letter request refunds it. |
+| Real payments | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Each road connects its own Stripe Express account. Neighbors pay through Stripe Checkout by bank (instant verification) or card, as destination charges: the money lands in the road's account and Road Fund keeps the $1 fee plus processing. The Road Fund plan is a yearly subscription priced by road size; the agreement help and the $150 letter fee are one-time payments. Declining a paid letter request refunds it. |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` | Receipts, captain alerts for payments and letter requests, letters emailed to title companies, captain sign-in links, and sending notices from the send sheet. |
 | Texts | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` or `TWILIO_MESSAGING_SERVICE_SID` | Texts to neighbors who opted in from their own page, a confirmation text when they do, STOP/START handled at `/api/sms/inbound`. |
-| Daily job | `CRON_SECRET` | `vercel.json` runs `/api/cron/daily` each morning: reminders 3 days before and 7 and 21 days after the due date to homes that still owe, snow alerts to the captain and plow driver, and nudges for letter requests waiting more than 2 days. Each send is recorded so a retry never repeats it. |
-| AI help | `ANTHROPIC_API_KEY` | Reading invoices and deeds, rewriting messages, comparing quotes, answering questions about the agreement. |
+| Daily job | `CRON_SECRET` | `vercel.json` runs `/api/cron/daily` each morning: reminders 3 days before and 7 and 21 days after the due date to homes that still owe (skipping homes on a payment plan or with a check in the mail), and nudges for letter requests waiting more than 2 days. Each send is recorded so a retry never repeats it. |
+| Bill reading | `ANTHROPIC_API_KEY` | Fills in a contractor's bill from a photo, and answers neighbors' questions from the agreement's own text. Both work without it, just by hand. |
 
 `/api/status` reports what is on, and Settings in the app shows it. The demo road always stays simulated, even with Stripe on.
 
@@ -27,11 +41,11 @@ Dues, records and closing letters for private roads with 3 to 30 homes. Built fr
 
 ## Try it
 
-Open `/demo`. You become Carol Jensen, captain of Birch Hollow Lane: nine homes, a year and a half of dues, bills, votes, bids and an agreement in progress. The welcome card lists six things to try. Use **See neighbor view** (eye icon) or Neighbors → *Open their page* to act as any neighbor.
+Open `/demo`. You become Carol Jensen, captain of Birch Hollow Lane: nine homes, a year and a half of dues, bills, votes and an agreement being signed. The welcome card lists six things to try. Use **See neighbor view** (eye icon) or Neighbors → *Open their page* to act as any neighbor.
 
 ## What is simulated without keys
 
-Without Stripe keys: bank connections, payments, plan upgrades and the $75/$249 purchases (fees and settlement times use Stripe's published rates). Without email or texting keys: Road Fund sends nothing itself, and the send sheet's Text and Email buttons open the captain's own Messages or email app with the message filled in. Each screen says which mode it is in.
+Without Stripe keys: bank connections, payments, plan upgrades and the letter and agreement purchases (fees and settlement times use Stripe's published rates). Without email or texting keys: Road Fund sends nothing itself, and the send sheet's Text and Email buttons open the captain's own Messages or email app with the message filled in. Each screen says which mode it is in.
 
 The agreement steps never simulate anyone: the captain records their own attorney's review, the notary appointment and the county recording. The agreement package is a concierge service; orders are emailed to `SUPPORT_EMAIL`.
 
@@ -48,7 +62,7 @@ npm run build
 
 ## How it is built
 
-- **Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript.** Leaflet with OpenStreetMap and Esri imagery for the road map; National Weather Service API for snow alerts; Nominatim for address search.
+- **Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript.** Leaflet with OpenStreetMap and Esri imagery for the road map; Nominatim for address search.
 - **One JSON document per road** (`lib/types.ts`). Roads are small, so a single document keeps sync, export, backup and audit simple.
 - **Every change is a command** run through one reducer (`lib/commands.ts`). The browser runs it for instant feedback and for browser-mode storage; the server runs the same reducer for cloud storage, with optimistic concurrency (compare-and-set in Redis). Payments are idempotent by id, and every command writes to the road's activity log.
 - **Access by link.** Captains hold a secret key (stored hashed on the server); each neighbor link carries its own token and can only pay, vote, sign or update its own contact settings. Amounts, fees and timestamps from neighbor links are rebuilt server-side (`lib/neighbor-actions.ts`). Neighbor views never include other neighbors' contact details.

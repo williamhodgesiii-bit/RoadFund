@@ -28,7 +28,7 @@ export default function LedgerPage() {
     for (const e of all.filter((x) => year === "all" || yearOf(String(x.date)) === year)) {
       data.push([String(e.date).slice(0, 10), e.kind === "out" ? "Paid out" : e.kind === "in" ? "Received" : "Opening", e.label, e.detail, (e.amount / 100).toFixed(2), (e.balance / 100).toFixed(2), e.receiptNo ?? "", e.pending ? "Clearing" : "Cleared"]);
     }
-    downloadFile(`${road.name.replace(/\W+/g, "-").toLowerCase()}-ledger-${year}.csv`, toCsv(data), "text/csv");
+    downloadFile(`${road.name.replace(/\W+/g, "-").toLowerCase()}-payment-record-${year}.csv`, toCsv(data), "text/csv");
   };
 
   return (
@@ -62,9 +62,9 @@ export default function LedgerPage() {
         {rows.length === 0 ? (
           <Empty title="Nothing here yet">Payments and paid bills show up here automatically.</Empty>
         ) : (
-          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ledger">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Payment record">
             <table className="w-full min-w-[640px] text-left">
-              <caption className="sr-only">Ledger</caption>
+              <caption className="sr-only">Payment record</caption>
               <thead className="border-b border-line bg-paper text-[0.88rem] text-stone">
                 <tr>
                   <th className="px-5 py-2.5 font-semibold">Date</th>
@@ -101,7 +101,7 @@ export default function LedgerPage() {
                             </button>
                           )}
                         </div>
-                        {showFile && showFile === e.fileId && <FileThumb fileId={e.fileId} alt="Invoice" className="mt-2 h-40 w-40 rounded-lg" />}
+                        {showFile && showFile === e.fileId && <FileThumb fileId={e.fileId} alt="Bill" className="mt-2 h-40 w-40 rounded-lg" />}
                       </td>
                       <td className={cx("tnum whitespace-nowrap px-3 py-3 text-right font-bold", e.amount < 0 ? "text-charcoal" : "text-pine")}>
                         {e.amount < 0 ? `−${money(-e.amount)}` : `+${money(e.amount)}`}

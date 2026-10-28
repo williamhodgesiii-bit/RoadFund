@@ -5,7 +5,7 @@
 export type ISODate = string;
 export type ISOTime = string;
 
-export type Plan = "starter" | "roadfund" | "plus";
+export type Plan = "starter" | "roadfund";
 export type Surface = "gravel" | "paved" | "chip-seal" | "dirt";
 export type SplitMethod = "equal" | "frontage" | "distance" | "segment" | "custom";
 export type PayMethod = "ach" | "card" | "check" | "cash";
@@ -86,6 +86,8 @@ export interface DuesRequest {
   message: string;
   status: "open" | "closed";
   sentAt: ISOTime | null;
+  /** A project bill approved by this vote: neighbors pay before the work starts. */
+  voteId?: string | null;
 }
 
 export interface Payment {
@@ -136,8 +138,6 @@ export interface Contractor {
   trade: string;
   phone: string;
   email: string;
-  w9OnFile: boolean;
-  isCorporation: boolean;
   notes: string;
 }
 
@@ -155,8 +155,6 @@ export interface WorkEntry {
   contractorId: string | null;
   cost: number | null;
   photos: PhotoRef[];
-  position: LatLng | null;
-  severity: "minor" | "moderate" | "severe" | null;
   status: "open" | "scheduled" | "fixed" | null;
   createdAt: ISOTime;
 }
@@ -183,7 +181,8 @@ export interface Vote {
   ballots: Ballot[];
   closedAt: ISOTime | null;
   outcome: "passed" | "failed" | null;
-  bidId: string | null;
+  /** The project bill created after a spending vote passed: collect before the work starts. */
+  requestId?: string | null;
 }
 
 export type DocKind = "easement" | "plat" | "agreement" | "insurance" | "minutes" | "survey" | "tax" | "other";
@@ -258,6 +257,9 @@ export interface LetterSnapshot {
   lengthFt: number;
   surface: Surface;
   homesCount: number;
+  /** Optional on letters issued before these were asked. */
+  easementRef?: string | null;
+  allWeather?: boolean | null;
   property: { label: string; address: string; owners: string };
   agreement: {
     status: "recorded" | "signed" | "in-progress" | "none";
@@ -289,6 +291,8 @@ export interface StatusLetter {
   fee: number;
   paidBy: "seller" | "closing" | "road";
   requestId: string | null;
+  /** Set on a free updated copy of an earlier letter (one update within 30 days is included). */
+  updateOf?: string | null;
   snapshot: LetterSnapshot;
 }
 
@@ -306,43 +310,9 @@ export interface LetterRequest {
   paidIntentId?: string | null;
 }
 
-export interface ReserveItem {
-  id: string;
-  name: string;
-  cost: number;
-  lifeYears: number;
-  lastDoneYear: number;
-}
-
+/** Money the road has set aside for big repairs (regrading, culverts). */
 export interface Reserve {
   setAside: number;
-  yearlyContribution: number;
-  inflationPct: number;
-  items: ReserveItem[];
-}
-
-export interface Quote {
-  id: string;
-  contractorId: string | null;
-  vendorName: string;
-  amount: number;
-  startBy: ISODate | null;
-  scope: string;
-  warranty: string;
-  receivedAt: ISOTime;
-}
-
-export interface Bid {
-  id: string;
-  title: string;
-  scope: string;
-  createdAt: ISOTime;
-  replyBy: ISODate | null;
-  contractorIds: string[];
-  quotes: Quote[];
-  status: "open" | "awarded" | "closed";
-  awardedQuoteId: string | null;
-  voteId: string | null;
 }
 
 export interface PaymentPlan {
@@ -366,10 +336,19 @@ export interface Notice {
   body: string;
 }
 
+/** A neighbor said a check is on its way. Cleared when the captain records a check or cash payment. */
+export interface CheckNote {
+  id: string;
+  homeId: string;
+  requestId: string;
+  amount: number;
+  at: ISOTime;
+}
+
 export interface MessageLog {
   id: string;
   at: ISOTime;
-  kind: "dues" | "reminder" | "notice" | "vote" | "agreement" | "letter" | "weather" | "general";
+  kind: "dues" | "reminder" | "notice" | "vote" | "agreement" | "letter" | "general";
   channel: Channel;
   homeIds: string[];
   body: string;
@@ -384,12 +363,10 @@ export interface Activity {
 
 export interface RoadSettings {
   payerCoversFees: boolean;
-  defaultPayMethod: "ach" | "card";
   showPaidNames: boolean;
   reminderDays: number[];
   /** Send reminders automatically on reminderDays (relative to the due date). Default on. */
   autoReminders?: boolean;
-  weather: { enabled: boolean; snowInches: number; contractorId: string | null };
 }
 
 export interface Account {
@@ -418,6 +395,10 @@ export interface Road {
   updatedAt: ISOTime;
   surface: Surface;
   lengthFt: number;
+  /** Where the access easement is recorded, e.g. "Liber 412, Page 88". Lenders check it. */
+  easementRef?: string;
+  /** Passable by an ordinary car all year. Lenders ask about it. null = not answered. */
+  allWeather?: boolean | null;
   path: LatLng[];
   center: LatLng | null;
   captainHomeId: string | null;
@@ -438,8 +419,9 @@ export interface Road {
   letters: StatusLetter[];
   letterRequests: LetterRequest[];
   reserve: Reserve;
-  bids: Bid[];
   plans: PaymentPlan[];
+  /** Checks neighbors said they mailed. Optional so older saved roads still load. */
+  checkNotes?: CheckNote[];
   notices: Notice[];
   messages: MessageLog[];
   activity: Activity[];

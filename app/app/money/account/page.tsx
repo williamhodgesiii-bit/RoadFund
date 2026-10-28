@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ExternalLink, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import { AmountInput } from "@/components/amount-input";
 import { MoneyNav, PageHeader } from "@/components/app/common";
-import { Button, Callout, Card, CardHeader, Choice, Field, Input, Toggle } from "@/components/ui";
+import { Button, Callout, Card, CardHeader, Field, Input, Toggle } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { stripeAction } from "@/lib/client/backend";
 import { useRoad } from "@/lib/client/road-context";
@@ -21,7 +21,7 @@ export default function AccountPage() {
   const [openingDate, setOpeningDate] = useState(road.account.openingDate ?? isoDate(now));
   const [setAside, setSetAside] = useState(road.reserve.setAside);
   const [connecting, setConnecting] = useState(false);
-  const sample = computeCharge(30_000, road.settings.defaultPayMethod, road.settings.payerCoversFees);
+  const sample = computeCharge(30_000, "ach", road.settings.payerCoversFees);
 
   return (
     <>
@@ -29,7 +29,7 @@ export default function AccountPage() {
       <MoneyNav />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Road bank account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub="Through Stripe Connect. Money goes to the road, never to Road Fund." />
+          <CardHeader title="Road bank account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub="Through Stripe. Road Fund never holds the money." />
           <div className="space-y-4 p-5">
             {live ? (
               <StripeAccount />
@@ -48,7 +48,7 @@ export default function AccountPage() {
               </>
             ) : (
               <>
-                <p>Connect an account in the road&apos;s name so neighbors can pay by bank or card and you can pay contractors from it.</p>
+                <p>Connect the bank account road money goes into, so neighbors can pay by bank or card.</p>
                 <p className="rounded-xl bg-paper p-3 text-[0.92rem] text-stone">Test mode uses Stripe&apos;s public test bank (routing 110000000). No real account is connected.</p>
                 <Button
                   block
@@ -72,7 +72,7 @@ export default function AccountPage() {
                 <dd className="tnum text-[1.3rem] font-extrabold">{money(acct.balance)}</dd>
               </div>
               <div>
-                <dt className="text-[0.88rem] text-stone">Clearing</dt>
+                <dt className="text-[0.88rem] text-stone">On its way</dt>
                 <dd className="tnum text-[1.3rem] font-extrabold">{money(acct.pending)}</dd>
               </div>
             </dl>
@@ -80,35 +80,23 @@ export default function AccountPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Payment fees" sub="$1 per payment plus processing. Bank: 0.8%, max $5. Card: 2.9% + 30¢." />
+          <CardHeader title="Payment fees" sub="$1 per online payment plus the bank or card charge. Checking account: 0.8%, at most $5. Card: 2.9% + 30¢. Checks are free." />
           <div className="space-y-5 p-5">
             <Toggle
               checked={road.settings.payerCoversFees}
               onChange={(v) => dispatch({ type: "road.settings", patch: { payerCoversFees: v } }, v ? "Neighbors now cover fees." : "The road now covers fees.")}
               label="Neighbors cover the fees"
-              hint={road.settings.payerCoversFees ? "The road receives every share in full." : "Neighbors pay exactly their share; fees come out of the road account."}
+              hint={road.settings.payerCoversFees ? "The road gets every share in full." : "Neighbors pay exactly their share, and the road pays the fee."}
             />
-            <fieldset>
-              <legend className="mb-2 font-semibold">Suggested way to pay</legend>
-              <Choice
-                name="paymethod"
-                columns={2}
-                value={road.settings.defaultPayMethod}
-                onChange={(v) => dispatch({ type: "road.settings", patch: { defaultPayMethod: v } })}
-                options={[
-                  { value: "ach", label: "Bank", hint: "Cheapest" },
-                  { value: "card", label: "Card", hint: "Fastest" },
-                ]}
-              />
-            </fieldset>
             <p className="rounded-xl bg-paper p-3 text-[0.95rem]">
-              On a $300 share: neighbor pays <strong className="tnum">{money(sample.total)}</strong>, road receives <strong className="tnum">{money(sample.roadNet)}</strong>.
+              On a $300 share paid from a checking account: the neighbor pays <strong className="tnum">{money(sample.total)}</strong> and the road gets{" "}
+              <strong className="tnum">{money(sample.roadNet)}</strong>. Checks and cash are always free.
             </p>
           </div>
         </Card>
 
         <Card>
-          <CardHeader title="Starting balance" sub="Money the road already had before Road Fund, so the ledger matches the bank." />
+          <CardHeader title="Starting balance" sub="Money the road already had before Road Fund, so the payment record matches the bank." />
           <div className="space-y-4 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Amount" htmlFor="acct-open">
@@ -215,11 +203,14 @@ function StripeAccount() {
   }
   return (
     <>
-      <p>Connect an account in the road&apos;s name so neighbors can pay by bank or card. Stripe, the payment company behind many online stores, holds and moves the money.</p>
+      <p>
+        Connect the bank account road money goes into: the road&apos;s own account if it has one, or yours if it doesn&apos;t. Stripe, the payment company behind many online
+        stores, moves the money. Every dollar shows on the record neighbors can see.
+      </p>
       <ul className="list-disc space-y-1 pl-6 text-[0.95rem]">
         <li>Takes about 10 minutes.</li>
         <li>Have the road&apos;s bank account and routing number ready.</li>
-        <li>Stripe asks for the road&apos;s tax ID (EIN) if it has one, or the captain&apos;s details if it doesn&apos;t.</li>
+        <li>Stripe asks for the road&apos;s tax ID (EIN) if it has one, or your own details if it doesn&apos;t. That&apos;s normal for most roads.</li>
       </ul>
       <Button block loading={busy === "connect"} icon={<ShieldCheck className="h-5 w-5" aria-hidden />} onClick={() => go("connect")}>
         Connect with Stripe

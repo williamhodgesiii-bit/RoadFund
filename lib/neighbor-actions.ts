@@ -29,6 +29,11 @@ export function prepareNeighborCommand(road: Road, homeId: string, cmd: Command,
       });
       return { type: "payment.record", payment };
     }
+    case "check.mailed": {
+      const bill = homeOpenBills(road, homeId, new Date(at)).find((b) => b.request.id === cmd.note.requestId);
+      if (!bill) throw new CommandError("This bill is already paid or closed.", 409);
+      return { type: "check.mailed", note: { id: cmd.note.id, homeId, requestId: bill.request.id, amount: bill.line.outstanding, at } };
+    }
     case "vote.cast":
       return { ...cmd, ballot: { ...cmd.ballot, at, via: "link" } };
     case "agreement.sign":

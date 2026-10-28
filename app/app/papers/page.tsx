@@ -97,7 +97,7 @@ function NewVoteDialog({ onClose }: { onClose: () => void }) {
   const [deadline, setDeadline] = useState(addDays(isoDate(), 7));
   const threshold = kind === "repair" ? t.repairThreshold : kind === "improvement" ? t.improvementThreshold : kind === "agreement" ? "two-thirds" : "majority";
   const save = async () => {
-    const vote: VoteT = { id: uid("vote"), kind, question: question.trim(), detail: detail.trim(), amount: amount || null, createdAt: new Date().toISOString(), deadline, threshold, ballots: [], closedAt: null, outcome: null, bidId: null };
+    const vote: VoteT = { id: uid("vote"), kind, question: question.trim(), detail: detail.trim(), amount: amount || null, createdAt: new Date().toISOString(), deadline, threshold, ballots: [], closedAt: null, outcome: null };
     if (await dispatch({ type: "vote.create", vote }, "Vote started.")) router.push(`/app/papers/votes/${vote.id}?send=1`);
   };
   return (

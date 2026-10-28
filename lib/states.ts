@@ -6,6 +6,8 @@ export interface DefaultLaw {
   citation: string;
   rule: string;
   source: string;
+  /** The split that matches the law's own formula, used as the starting point in setup. */
+  split: "equal" | "segment";
 }
 
 export const STATES: { code: string; name: string }[] = [
@@ -23,36 +25,65 @@ export const STATES: { code: string; name: string }[] = [
 ].map(([code, name]) => ({ code, name }));
 
 export const DEFAULT_LAWS: Record<string, DefaultLaw> = {
+  CA: {
+    citation: "Civil Code § 845",
+    rule: "Owners who use the road share the cost in proportion to their use. Small claims court can be used to collect.",
+    source: "California Civil Code",
+    split: "segment",
+  },
+  CT: {
+    citation: "Conn. Gen. Stat. § 47-42f (2014)",
+    rule: "When there's no agreement, owners who benefit from the right-of-way share upkeep in proportion to the benefit.",
+    source: "Connecticut General Statutes",
+    split: "segment",
+  },
+  ME: {
+    citation: "23 M.R.S. § 3121 (amended 2021) and § 3101",
+    rule: "Owners share equally where the road is their main access, unless something else applies. Owners can also form a road association that votes on and collects shares.",
+    source: "Maine Revised Statutes",
+    split: "equal",
+  },
+  MO: {
+    citation: "RSMo 228.369",
+    rule: "A court can order owners to share upkeep and decide each owner's part.",
+    source: "Missouri Revised Statutes",
+    split: "equal",
+  },
+  NH: {
+    citation: "RSA 231:81-a (2019)",
+    rule: "Owners who use a private road share its upkeep equitably when there's no written agreement.",
+    source: "New Hampshire Revised Statutes",
+    split: "equal",
+  },
+  OR: {
+    citation: "ORS 105.170 to 105.185",
+    rule: "Costs are split by use: how often each owner drives the road and how heavy the vehicles are.",
+    source: "Oregon Revised Statutes",
+    split: "segment",
+  },
   PA: {
     citation: "Act 75 of 2021",
-    rule: "Sets a minimum statutory maintenance agreement for all private-road properties. Realtors say it satisfies federally backed mortgage rules.",
-    source: "Pennsylvania Association of Realtors",
+    rule: "Owners on a private road share maintenance in proportion to use when there's no agreement. Realtors say it satisfies federally backed mortgage rules.",
+    source: "Pennsylvania General Assembly",
+    split: "segment",
   },
   VT: {
     citation: "19 V.S.A. § 2702",
-    rule: "Everyone who benefits from the road contributes \"rateably\" and can sue to enforce.",
-    source: "Vermont Statutes, Title 19, Chapter 27",
+    rule: "Everyone who benefits from the road pays a fair share (\"rateably\") and can go to court to enforce it.",
+    source: "Vermont Statutes, Title 19",
+    split: "segment",
   },
-  ME: {
-    citation: "23 M.R.S. § 3121 and § 3101",
-    rule: "Equal shares for residential owners if nothing else applies. Owners can form a statutory road association that can assess and collect.",
-    source: "Maine Revised Statutes",
+  WI: {
+    citation: "Wis. Stat. § 710.20 (2021)",
+    rule: "Owners share upkeep based on how much and how heavily each one uses the road.",
+    source: "Wisconsin Statutes",
+    split: "segment",
   },
-  CA: {
-    citation: "Civil Code § 845",
-    rule: "Costs are shared in proportion to use. Small claims court is allowed for collection.",
-    source: "California Civil Code",
-  },
-  OR: {
-    citation: "ORS 105.175",
-    rule: "Costs are split by use: trip frequency, vehicle size and weight.",
-    source: "Oregon Revised Statutes",
-  },
-  CT: {
-    citation: "Default easement-maintenance statute (effective Oct 1, 2014)",
-    rule: "Sets maintenance duties when there is no agreement; cited in Fannie Mae discussions.",
-    source: "Connecticut General Statutes",
-  },
+};
+
+/** States with a public route instead of a default duty. Shown in the guide and setup. */
+export const STATE_NOTES: Record<string, string> = {
+  MI: "Michigan has no default duty to share costs. Owners can petition the township for a special assessment district, which collects with property taxes.",
 };
 
 /** Remote online notarization: legal in 49 states + DC; California is the holdout. */
@@ -78,10 +109,10 @@ export const LOAN_RULES: LoanRule[] = [
   {
     loan: "Conventional (Fannie Mae)",
     needsAgreement: "yes",
-    answer: "Yes, unless the state has a default road law.",
+    answer: "Usually, unless the state has a road-sharing law.",
     needs:
-      "A recorded agreement or covenant with each owner's share of costs, what happens if someone doesn't pay, and a term that binds future owners. Without one, the lender must indemnify Fannie Mae for road losses, which most lenders avoid.",
-    source: "Fannie Mae Selling Guide excerpt",
+      "An agreement (best if recorded) with each owner's share of costs, what happens if someone doesn't pay, and a term that binds future owners. Without one, the lender can still sell the loan but must cover Fannie Mae's losses, which many lenders won't do.",
+    source: "Fannie Mae Selling Guide, B4-1.3-04",
   },
   {
     loan: "Conventional (Freddie Mac)",
@@ -94,22 +125,22 @@ export const LOAN_RULES: LoanRule[] = [
     loan: "FHA",
     needsAgreement: "no",
     answer: "No.",
-    needs: "A permanent recorded easement (or HOA ownership) and an all-weather road.",
+    needs: "A permanent recorded easement (or HOA ownership) and a road a car can use all year.",
     source: "HUD Handbook 4000.1",
   },
   {
     loan: "VA",
-    needsAgreement: "no",
-    answer: "No, since Nov 25, 2022.",
-    needs: "A recorded permanent easement or right-of-way.",
-    source: "VA Circular 26-22-17",
+    needsAgreement: "unclear",
+    answer: "Probably not. Sources disagree.",
+    needs: "A recorded permanent easement. A 2022 VA circular dropped the agreement rule, but some current VA pages still show the older wording. Ask the lender.",
+    source: "VA Circular 26-22-17; VA Lender's Handbook, chapter 12",
   },
   {
     loan: "USDA Rural",
     needsAgreement: "no",
-    answer: "No. \"Evidence of a road maintenance agreement is not required.\"",
-    needs: "A recorded easement or HOA, plus an all-weather surface.",
-    source: "USDA HB-1-3555, 12.7",
+    answer: "No.",
+    needs: "A recorded easement or HOA ownership, plus a road a car can use all year.",
+    source: "USDA HB-1-3555, chapter 12",
   },
   {
     loan: "Portfolio / local banks",

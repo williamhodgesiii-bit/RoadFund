@@ -2,15 +2,13 @@ import { CommandError, type Command } from "@/lib/commands";
 import { daysBetween, fmtDate, isoDate } from "@/lib/dates";
 import { uid } from "@/lib/ids";
 import { money } from "@/lib/money";
-import { captainHome, displayName, requestProgress } from "@/lib/selectors";
+import { captainHome, checkInMail, requestProgress } from "@/lib/selectors";
 import { errorResponse, json } from "@/lib/server/http";
 import { kvEnabled } from "@/lib/server/kv";
 import { emailEnabled, sendEmail, sendSms, serverChannel, smsEnabled, validEmail } from "@/lib/server/notify";
 import { allRoadIds, loadRoad, mutate, once } from "@/lib/server/store";
-import { fetchForecast } from "@/lib/server/weather";
-import { budgetSummary, fillTokens, firstName, SMS_FOOTER, TEMPLATE_SUBJECT, TOKEN_TEMPLATES } from "@/lib/templates";
+import { baseValues, budgetSummary, fillTokens, SMS_FOOTER, TEMPLATE_SUBJECT, TOKEN_TEMPLATES } from "@/lib/templates";
 import type { Road } from "@/lib/types";
-import { snowText } from "@/lib/weather";
 
 export const maxDuration = 300;
 
@@ -26,7 +24,6 @@ function origin(req: Request): string {
 interface Tally {
   roads: number;
   reminders: number;
-  snow: number;
   letters: number;
   errors: number;
 }
@@ -41,8 +38,8 @@ async function reminders(road: Road, base: string, today: string, t: Tally) {
     if (!road.settings.reminderDays.includes(offset)) continue;
     const prog = requestProgress(road, request, new Date());
     for (const line of prog.lines) {
-      // Skip homes that paid, are clearing, or are on a payment plan.
-      if (line.outstanding <= 0 || line.plan || line.processing > 0) continue;
+      // Skip homes that paid, are clearing, are on a payment plan, or said a check is in the mail.
+      if (line.outstanding <= 0 || line.plan || line.processing > 0 || checkInMail(road, line.home.id, request.id, new Date())) continue;
       const home = line.home;
       const channel = serverChannel(home);
       if (!channel) continue;
@@ -50,14 +47,11 @@ async function reminders(road: Road, base: string, today: string, t: Tally) {
       const kind = offset <= 0 ? "reminder" : "friendly";
       const link = `${base}/n/${road.id}/${home.token}`;
       const values: Record<string, string> = {
-        first: firstName(home.owners || home.label),
-        road: road.name,
-        captain: cap ? firstName(displayName(cap)) : "your road captain",
+        ...baseValues(road, home, link),
         amount: money(line.outstanding),
         due: fmtDate(request.dueDate),
         title: request.title,
         budget: budgetSummary(request.budget.map((b) => b.label)) || "plowing and upkeep",
-        link,
       };
       const body = fillTokens(TOKEN_TEMPLATES[kind], values);
       const res =
@@ -82,42 +76,6 @@ async function reminders(road: Road, base: string, today: string, t: Tally) {
     .filter((list) => list.length)
     .map((list) => ({ type: "message.log", message: { id: uid("msg"), at: new Date().toISOString(), kind: "reminder", channel: list[0].channel, homeIds: list.map((s) => s.homeId), body: list[0].body } }));
   await mutate(road.id, () => ({ commands, ctx: { at: new Date().toISOString(), actor: { kind: "system", homeId: null, name: "Automatic reminder" } } }));
-}
-
-async function snowAlert(road: Road, base: string, today: string, t: Tally) {
-  const w = road.settings.weather;
-  if (!w.enabled || !emailEnabled) return;
-  const at = road.center ?? road.path[0] ?? road.homes.find((h) => h.position)?.position;
-  const cap = captainHome(road);
-  if (!at || !cap || !validEmail(cap.email)) return;
-  const f = await fetchForecast(at.lat, at.lng);
-  if (!f.available) return;
-  // Next 48 hours: four forecast periods.
-  const hit = f.days.slice(0, 4).find((d) => d.snow && d.snow[1] >= w.snowInches);
-  if (!hit?.snow) return;
-  if (!(await once(`snow:${road.id}:${today}`, 2 * DAY))) return;
-  const plow = road.contractors.find((c) => c.id === w.contractorId);
-  await sendEmail({
-    to: cap.email,
-    fromName: "Road Fund",
-    subject: `Snow on the way for ${road.name}: ${snowText(hit.snow)}`,
-    text: [
-      `The National Weather Service expects ${snowText(hit.snow)} ${hit.name.toLowerCase().startsWith("to") ? hit.name.toLowerCase() : `by ${hit.name}`}.`,
-      `${hit.detail}`,
-      plow ? `Your plow contact is ${plow.name}${plow.phone ? ` at ${plow.phone}` : ""}. Road Fund also emailed them if we have their address.` : `You haven't picked a plow contact yet. Add one under Road, then Contractors.`,
-      `${base}/app`,
-    ].join("\n\n"),
-  });
-  if (plow && validEmail(plow.email)) {
-    await sendEmail({
-      to: plow.email,
-      fromName: `${road.name} via Road Fund`,
-      replyTo: cap.email,
-      subject: `${road.name}: ${snowText(hit.snow)} forecast`,
-      text: `Hi ${firstName(plow.name)}, the forecast for ${road.name} shows ${snowText(hit.snow)} (${hit.name}). Please plan to plow once it reaches ${w.snowInches} inches. Reply to reach ${displayName(cap)}.`,
-    });
-  }
-  t.snow++;
 }
 
 async function letterNudges(road: Road, base: string, t: Tally) {
@@ -145,14 +103,13 @@ export async function GET(req: Request) {
     if (!kvEnabled) return json({ skipped: "Cloud storage is off." });
     const base = origin(req);
     const today = isoDate();
-    const t: Tally = { roads: 0, reminders: 0, snow: 0, letters: 0, errors: 0 };
+    const t: Tally = { roads: 0, reminders: 0, letters: 0, errors: 0 };
     for (const id of await allRoadIds()) {
       try {
         const found = await loadRoad(id);
         if (!found || found.road.demo) continue;
         t.roads++;
         await reminders(found.road, base, today, t);
-        await snowAlert(found.road, base, today, t);
         await letterNudges(found.road, base, t);
       } catch (err) {
         t.errors++;

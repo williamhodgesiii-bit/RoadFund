@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { BellRing, Copy, ExternalLink, FileWarning, MoreHorizontal, Receipt, Send, Wallet } from "lucide-react";
 import { hasPlan, PageHeader, PlanGate, StatusPill } from "@/components/app/common";
 import { PaymentPlanDialog, ReceiptDialog, RecordPaymentDialog } from "@/components/app/money-dialogs";
+import { NoticeLetterDialog } from "@/components/app/notice-letter";
 import { SendSheet } from "@/components/app/send-sheet";
 import { Button, Callout, Card, CardHeader, cx, Dialog, Empty, Progress } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -19,9 +20,9 @@ import { CATEGORY_LABEL } from "@/lib/factory";
 import { uid } from "@/lib/ids";
 import { money } from "@/lib/money";
 import { latestShares } from "@/lib/neighbor";
-import { displayName, dueSoonText, requestProgress, type LineProgress } from "@/lib/selectors";
+import { approvalText, checkInMail, displayName, dueSoonText, type LineProgress, requestProgress } from "@/lib/selectors";
 import { methodSentence } from "@/lib/split";
-import type { NoticeKind, Payment } from "@/lib/types";
+import type { Payment } from "@/lib/types";
 import type { TemplateKind } from "@/lib/templates";
 
 type Sheet = { kind: TemplateKind; heading: string; which: "all" | "unpaid"; homeId?: string } | null;
@@ -39,6 +40,7 @@ export default function RequestPage() {
   const [planFor, setPlanFor] = useState<LineProgress | null>(null);
   const [toolsFor, setToolsFor] = useState<LineProgress | null>(null);
   const [receipt, setReceipt] = useState<Payment | null>(null);
+  const [notice, setNotice] = useState<{ kind: "formal" | "final"; line: LineProgress } | null>(null);
 
   useEffect(() => {
     if (autoSend) window.history.replaceState(null, "", window.location.pathname);
@@ -59,12 +61,12 @@ export default function RequestPage() {
   const logSend = async (message: Parameters<React.ComponentProps<typeof SendSheet>["onLogged"]>[0]) => {
     if (!sheet) return false;
     if (sheet.kind === "dues") return dispatch({ type: "request.sent", requestId: req.id, message });
-    if (sheet.kind === "friendly" || sheet.kind === "formal" || sheet.kind === "final") {
+    if (sheet.kind === "friendly") {
       return dispatch([
         { type: "message.log", message: { ...message, kind: "notice" } },
         ...message.homeIds.map((homeId) => ({
           type: "notice.create" as const,
-          notice: { id: uid("ntc"), homeId, requestId: req.id, kind: sheet.kind as NoticeKind, createdAt: message.at, channel: message.channel, body: message.body },
+          notice: { id: uid("ntc"), homeId, requestId: req.id, kind: "friendly" as const, createdAt: message.at, channel: message.channel, body: message.body },
         })),
       ]);
     }
@@ -92,6 +94,11 @@ export default function RequestPage() {
           ) : undefined
         }
       />
+      {approvalText(road, req) && (
+        <Callout tone="ok" className="mb-5" title="Neighbors agreed to this before the work">
+          {approvalText(road, req)} {prog.collected + prog.processing >= req.total ? "All the money is in, so you can pay the contractor from it." : `Pay the contractor once the money is in: ${money(prog.collected + prog.processing)} of ${money(req.total)} so far.`}
+        </Callout>
+      )}
 
       {!req.sentAt && req.status === "open" && (
         <Callout tone="warn" className="mb-5" title="Not sent yet">
@@ -135,6 +142,9 @@ export default function RequestPage() {
                     {l.lastPaidAt && ` · last paid ${fmtDay(l.lastPaidAt, now)}`}
                     {l.plan && ` · plan: ${l.plan.installments.length} payments`}
                   </p>
+                  {l.outstanding > 0 && checkInMail(road, l.home.id, req.id, now) && (
+                    <p className="text-[0.9rem] font-semibold text-pine">Says a check is in the mail ({fmtDay(checkInMail(road, l.home.id, req.id, now)!.at, now)}). Record it when it arrives.</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusPill status={l.status} />
@@ -214,6 +224,7 @@ export default function RequestPage() {
         )}
       </div>
 
+      {notice && <NoticeLetterDialog kind={notice.kind} line={notice.line} request={req} onClose={() => setNotice(null)} />}
       {sheet && <SendSheet open onClose={() => setSheet(null)} kind={sheet.kind} heading={sheet.heading} recipients={recipients} logKind={sheet.kind === "dues" ? "dues" : "reminder"} onLogged={logSend} />}
       {recording && <RecordPaymentDialog open onClose={() => setRecording(null)} home={recording.home} request={req} outstanding={recording.outstanding} />}
       {planFor && <PaymentPlanDialog open onClose={() => setPlanFor(null)} home={planFor.home} request={req} outstanding={planFor.outstanding} />}
@@ -247,13 +258,13 @@ export default function RequestPage() {
                 <h3 className="mb-2 flex items-center gap-2 font-bold">
                   <FileWarning className="h-5 w-5 text-brick" aria-hidden /> Late-payer toolkit
                 </h3>
-                {hasPlan(road.plan, "plus") ? (
+                {hasPlan(road.plan, "roadfund") ? (
                   <div className="grid gap-2">
                     {(
                       [
-                        ["friendly", "Friendly nudge", "Assumes it slipped by and offers a plan"],
-                        ["formal", "Formal notice", "Cites the late fee in the agreement, 14 days to pay"],
-                        ["final", "Final notice", "Small claims in 10 days unless paid or on a plan"],
+                        ["friendly", "Friendly nudge", "A text or email that assumes it slipped by and offers a plan"],
+                        ["formal", "Mail a letter", "A dated letter asking for payment within 14 days"],
+                        ["final", "Mail a final letter", "Says the road may go to small claims court in 10 days. Send by certified mail."],
                       ] as const
                     ).map(([k, t, s]) => (
                       <ToolButton
@@ -262,7 +273,8 @@ export default function RequestPage() {
                         title={t}
                         sub={`${s}${road.notices.some((n) => n.homeId === toolsFor.home.id && n.requestId === req.id && n.kind === k) ? " · sent before" : ""}`}
                         onClick={() => {
-                          setSheet({ kind: k, heading: `${t} to ${displayName(toolsFor.home)}`, which: "unpaid", homeId: toolsFor.home.id });
+                          if (k === "friendly") setSheet({ kind: k, heading: `${t} to ${displayName(toolsFor.home)}`, which: "unpaid", homeId: toolsFor.home.id });
+                          else setNotice({ kind: k, line: toolsFor });
                           setToolsFor(null);
                         }}
                       />
@@ -270,10 +282,10 @@ export default function RequestPage() {
                     {!toolsFor.plan && (
                       <ToolButton icon={<Wallet className="h-5 w-5" aria-hidden />} title="Set up a payment plan" sub="Split what's owed into monthly payments" onClick={() => { setPlanFor(toolsFor); setToolsFor(null); }} />
                     )}
-                    <ToolButton icon={<Receipt className="h-5 w-5" aria-hidden />} title="Print small-claims packet" sub="Ledger, agreement terms and every notice sent" onClick={() => printPacket(road, req.id, toolsFor, now)} />
+                    <ToolButton icon={<Receipt className="h-5 w-5" aria-hidden />} title="Print small-claims packet" sub="Payment record, agreement terms and every notice sent" onClick={() => printPacket(road, req.id, toolsFor, now)} />
                   </div>
                 ) : (
-                  <PlanGate needs="plus" feature="The late-payer toolkit" pitch="Friendly, formal and final notices, payment plans, and a small-claims packet with the ledger, agreement and notices.">
+                  <PlanGate needs="roadfund" feature="Help with late payers" pitch="A friendly nudge, mailed letters when that doesn't work, payment plans, and a small-claims packet with the payment record, the agreement and every notice.">
                     {null}
                   </PlanGate>
                 )}

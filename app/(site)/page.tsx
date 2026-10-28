@@ -1,29 +1,16 @@
 import Link from "next/link";
+import { ArrowRight, Banknote, FileSignature, FileText, Landmark, Mail, MessageSquare, Scale, ShieldCheck, Snowflake, Users } from "lucide-react";
 import { DeploymentNote } from "@/components/deployment-note";
-import {
-  ArrowRight,
-  Banknote,
-  BellRing,
-  Camera,
-  Check,
-  FileSignature,
-  FileText,
-  Hammer,
-  Landmark,
-  MessageSquare,
-  Minus,
-  Scale,
-  Vote,
-  X,
-} from "lucide-react";
 import { PhoneMock } from "@/components/phone-mock";
+import { PlanCards } from "@/components/plan-cards";
 import { ShareCalculator } from "@/components/share-calculator";
 import { ButtonLink } from "@/components/ui";
-import { computeCharge } from "@/lib/fees";
 import { money } from "@/lib/money";
+import { AGREEMENT_PACKAGE, LETTER_FEE } from "@/lib/pricing";
+import { DEFAULT_LAWS, stateName } from "@/lib/states";
 
-const achOn300 = computeCharge(30_000, "ach", true);
-const cardOn300 = computeCharge(30_000, "card", true);
+const $ = (c: number) => money(c).replace(".00", "");
+const LAW_STATES = Object.keys(DEFAULT_LAWS).map(stateName);
 
 export default function Landing() {
   return (
@@ -32,21 +19,21 @@ export default function Landing() {
       <section className="gravel border-b border-line">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-14 md:py-20 lg:grid-cols-[1.15fr_1fr]">
           <div>
-            <p className="sign-chip inline-flex items-center gap-2 rounded-md px-3 py-1 text-[0.9rem] font-bold">For private roads with 3 to 30 homes</p>
+            <p className="sign-chip inline-flex items-center gap-2 rounded-md px-3 py-1 text-[0.95rem] font-bold">For private roads shared by 3 to 30 homes</p>
             <h1 className="mt-5 text-[2.5rem] font-black leading-[1.05] sm:text-[3.3rem]">Stop fronting the money for your road.</h1>
-            <p className="mt-5 max-w-xl text-[1.15rem] text-stone">
-              Road Fund collects each neighbor&apos;s fair share, pays the plow and grading bills from the road&apos;s own account, and keeps a record anyone on the road can
-              check. Neighbors pay from a text message. No app to download, no password.
+            <p className="mt-5 max-w-xl text-[1.2rem] text-stone">
+              Road Fund keeps your road&apos;s money and paperwork in one place. Each neighbor gets their share and the reason for it, and pays by bank, card or check.
+              Everyone sees the same numbers. No app to download, no password.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <ButtonLink href="/start" size="lg" icon={<ArrowRight className="h-5 w-5" aria-hidden />}>
                 Set up your road free
               </ButtonLink>
               <ButtonLink href="/demo" size="lg" variant="secondary">
-                Walk through a demo road
+                Look around a sample road
               </ButtonLink>
             </div>
-            <p className="mt-5 text-[0.95rem] text-stone">Setup takes about 10 minutes. The free plan covers one dues request a year.</p>
+            <p className="mt-5 text-[1rem] text-stone">Setup takes about 10 minutes. Free for one bill a year.</p>
           </div>
           <PhoneMock />
         </div>
@@ -54,19 +41,13 @@ export default function Landing() {
 
       {/* The problem */}
       <section className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="max-w-2xl text-[2rem] font-black">Every private road has the same yearly problem.</h2>
+        <h2 className="max-w-2xl text-[2rem] font-black">The same three problems come up on almost every private road</h2>
         <div className="mt-8 grid gap-5 md:grid-cols-3">
+          <Problem title="One neighbor pays first" body="Someone pays the plow driver in December and the grader in May, then spends weeks collecting from everyone else by text, check and Venmo." />
+          <Problem title="Somebody doesn't pay" body="Without a clear amount, a reason and a record, asking a second time feels personal. So the same few neighbors cover the rest." />
           <Problem
-            title="One neighbor fronts the cost"
-            body="Someone pays the plow contractor in December and the grader in May, then spends weeks collecting from everyone else by text, check and Venmo."
-          />
-          <Problem
-            title="Not everyone pays"
-            body="Road groups commonly see a third of owners skip their share. Without a record and a clear split, asking again feels personal."
-          />
-          <Problem
-            title="Then a house sells"
-            body="The buyer's lender asks for a recorded road maintenance agreement. Most informal roads don't have one, and the closing stalls."
+            title="Nothing is in writing"
+            body="Without a signed agreement, it's hard to make a neighbor pay. And when a house sells, some buyers' lenders ask who keeps the road up."
           />
         </div>
       </section>
@@ -76,16 +57,37 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4 py-16">
           <h2 className="text-[2rem] font-black">How it works</h2>
           <ol className="mt-8 grid gap-6 md:grid-cols-3">
-            <Step n={1} title="Set up in about 10 minutes" icon={<Landmark className="h-6 w-6" aria-hidden />}>
-              Find your road, list the homes that use it, pick how to split costs, and connect the road&apos;s own bank account.
+            <Step n={1} title="Agree on a fair split" icon={<Users className="h-6 w-6" aria-hidden />}>
+              Equal shares, or by how much of the road each home drives. In {LAW_STATES.length} states the law already says how. Road Fund shows every neighbor why their
+              share is what it is.
             </Step>
-            <Step n={2} title="Send dues by text or email" icon={<MessageSquare className="h-6 w-6" aria-hidden />}>
-              Each neighbor gets a link with their amount and the reason for it. They pay by bank or card in under a minute. Reminders go out on their own.
+            <Step n={2} title="Ask once, clearly" icon={<MessageSquare className="h-6 w-6" aria-hidden />}>
+              Each home gets a text, email or printed letter from you with their amount, what it&apos;s for and the due date. They pay by bank, card or check. Reminders go out
+              on their own.
             </Step>
-            <Step n={3} title="Every dollar on the record" icon={<FileText className="h-6 w-6" aria-hidden />}>
-              Payments, bills, receipts, photos of the work and every vote land in one ledger anyone on the road can see.
+            <Step n={3} title="Everyone sees the same numbers" icon={<FileText className="h-6 w-6" aria-hidden />}>
+              Who paid, what the plow and gravel cost, and photos of the work, all in one record. When you hand off the job, it all goes to the next captain.
             </Step>
           </ol>
+        </div>
+      </section>
+
+      {/* Plowing season */}
+      <section className="mx-auto max-w-6xl px-4 pt-16">
+        <div className="flex flex-col gap-6 rounded-[var(--radius-card)] bg-charcoal p-6 text-white sm:p-8 md:flex-row md:items-center">
+          <span className="w-fit rounded-2xl bg-white/10 p-4 text-sign">
+            <Snowflake className="h-9 w-9" aria-hidden />
+          </span>
+          <div className="flex-1">
+            <h2 className="text-[1.6rem] font-black">Split this winter&apos;s plowing before the first storm</h2>
+            <p className="mt-2 text-[1.08rem] opacity-90">
+              Put the plow contract in as this year&apos;s bill, send each home its share, and pay the plow driver once from what comes in. No more covering the whole season
+              yourself and chasing it in March.
+            </p>
+          </div>
+          <ButtonLink href="/start" variant="warn" size="lg" className="whitespace-nowrap">
+            Set up plowing dues
+          </ButtonLink>
         </div>
       </section>
 
@@ -94,8 +96,7 @@ export default function Landing() {
         <div className="max-w-2xl">
           <h2 className="text-[2rem] font-black">See what&apos;s fair on your road</h2>
           <p className="mt-3 text-[1.1rem] text-stone">
-            The home at the end of the road uses more of it. Splitting by use charges each stretch only to the homes that drive it, with a base share so nobody pays
-            nothing. Change the method and watch the shares move.
+            Most roads start with equal shares. On a long dead-end road, the homes at the far end drive more of it. Switch the method below and watch the shares change.
           </p>
         </div>
         <div className="mt-8">
@@ -103,34 +104,39 @@ export default function Landing() {
         </div>
         <p className="mt-4">
           <Link href="/calculator" className="font-semibold text-lake underline">
-            Open the full calculator with your own homes and distances
+            Try it with your own homes and distances
           </Link>
         </p>
       </section>
 
-      {/* Features */}
+      {/* Agreement */}
       <section className="border-y border-line bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="text-[2rem] font-black">Dues, bills, votes and papers for the whole road</h2>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <Feature icon={<Banknote className="h-6 w-6" aria-hidden />} title="Dues and fair shares">
-              Equal, by frontage, by distance, or by use. Every neighbor sees exactly why they owe what they owe.
-            </Feature>
-            <Feature icon={<BellRing className="h-6 w-6" aria-hidden />} title="Reminders you don't have to send">
-              Polite reminders before and after the due date. Firm notices and payment plans when you need them.
-            </Feature>
-            <Feature icon={<Landmark className="h-6 w-6" aria-hidden />} title="The road's own account">
-              Money goes to an account in the road&apos;s name through Stripe. Anyone on the road can see the balance.
-            </Feature>
-            <Feature icon={<Hammer className="h-6 w-6" aria-hidden />} title="Pay the contractor">
-              Snap the invoice, approve it, and pay the plow or grading company from the road account. 1099s tracked.
-            </Feature>
-            <Feature icon={<Camera className="h-6 w-6" aria-hidden />} title="Work log with photos">
-              Before and after photos, potholes pinned on the map, and a savings plan for the big repairs coming up.
-            </Feature>
-            <Feature icon={<Vote className="h-6 w-6" aria-hidden />} title="Votes by text">
-              &ldquo;Grade in spring for $2,400?&rdquo; Yes or no from a link, with a deadline and a permanent record.
-            </Feature>
+        <div className="mx-auto grid max-w-6xl items-start gap-10 px-4 py-16 lg:grid-cols-2">
+          <div>
+            <h2 className="text-[2rem] font-black">Put the deal in writing</h2>
+            <p className="mt-3 text-[1.1rem] text-stone">
+              A signed road agreement is what makes a share collectible. It says who pays for what, how the road decides on work, and what happens if someone doesn&apos;t
+              pay. It also binds whoever buys a house on the road later.
+            </p>
+            <ul className="mt-5 space-y-3">
+              <Point icon={<FileSignature className="h-5 w-5" aria-hidden />}>Road Fund drafts it from your road&apos;s details and explains each part in plain English. Free.</Point>
+              <Point icon={<MessageSquare className="h-5 w-5" aria-hidden />}>Every owner reads and signs from their own phone. You can see who&apos;s left.</Point>
+              <Point icon={<Scale className="h-5 w-5" aria-hidden />}>
+                A local attorney should review it before anyone signs. Want us to line that up, plus the notary and county filing? That&apos;s {$(AGREEMENT_PACKAGE)}, with outside
+                fees at cost.
+              </Point>
+            </ul>
+          </div>
+          <div className="rounded-[var(--radius-card)] border border-line bg-paper p-6">
+            <p className="font-bold">States where the law already says neighbors share road costs</p>
+            <p className="mt-2 text-stone">{LAW_STATES.join(", ")}.</p>
+            <p className="mt-4 text-stone">
+              Even there, the law gives no easy way to collect, so a clear bill and a record still matter. Everywhere else, a written agreement is usually the only thing
+              that makes a neighbor&apos;s share something you can collect.
+            </p>
+            <Link href="/guide" className="mt-4 inline-block font-semibold text-lake underline">
+              Read the road law guide
+            </Link>
           </div>
         </div>
       </section>
@@ -139,30 +145,17 @@ export default function Landing() {
       <section className="mx-auto max-w-6xl px-4 py-16">
         <div className="grid items-start gap-10 lg:grid-cols-2">
           <div>
-            <h2 className="text-[2rem] font-black">When a house on your road sells</h2>
+            <h2 className="text-[2rem] font-black">Ready when a house on the road sells</h2>
             <p className="mt-3 text-[1.1rem] text-stone">
-              Buyers with conventional loans often need proof the road is maintained and paid for. Road Fund puts that proof one click away.
+              Title companies want to know who keeps the road up and whether the seller is paid up. With Road Fund, they request a Road Status Letter by the road&apos;s code
+              and pay {$(LETTER_FEE)} for it, usually passed to the seller at closing. You review it and send it in about a minute. It costs the road nothing.
             </p>
-            <div className="mt-6 space-y-4">
-              <Offer
-                icon={<FileText className="h-6 w-6" aria-hidden />}
-                title="Road Status Letter"
-                price="$75"
-                body="A dated letter for the buyer's lender or title company: agreement status, recording details, the seller's dues, the road balance and upcoming projects. Each letter has a code the title company can verify online."
-              />
-              <Offer
-                icon={<FileSignature className="h-6 w-6" aria-hidden />}
-                title="Lender-ready agreement package"
-                price="$249"
-                body="A state template filled from your road's data, attorney review, e-signatures from every owner, online notary and county recording. Attorney and county fees are passed through at cost."
-              />
-            </div>
             <div className="mt-6 flex flex-wrap gap-3">
               <ButtonLink href="/closing" variant="secondary">
-                For title companies and lenders
+                For title companies and agents
               </ButtonLink>
               <ButtonLink href="/guide" variant="ghost" icon={<Scale className="h-5 w-5" aria-hidden />}>
-                What lenders require
+                What lenders ask for
               </ButtonLink>
             </div>
           </div>
@@ -170,12 +163,24 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Comparison */}
+      {/* Trust */}
       <section className="border-y border-line bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="text-[2rem] font-black">How it compares</h2>
-          <p className="mt-3 max-w-2xl text-[1.1rem] text-stone">Most roads use a group text and one tired neighbor. HOA software works, but it&apos;s built and priced for HOAs.</p>
-          <ComparisonTable />
+          <h2 className="text-[2rem] font-black">Built so your neighbors trust it</h2>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <Feature icon={<Mail className="h-6 w-6" aria-hidden />} title="It comes from you">
+              Every message names you and the road, and tells neighbors how to check with you before paying. You can hand out a printed letter first.
+            </Feature>
+            <Feature icon={<Banknote className="h-6 w-6" aria-hidden />} title="Checks are welcome">
+              Neighbors who&apos;d rather write a check can, at no charge. You record it, and they get a receipt like everyone else.
+            </Feature>
+            <Feature icon={<Landmark className="h-6 w-6" aria-hidden />} title="Money goes to your bank">
+              Online payments go through Stripe to the bank account you connect, the road&apos;s own or yours. Road Fund never holds the money.
+            </Feature>
+            <Feature icon={<ShieldCheck className="h-6 w-6" aria-hidden />} title="No accounts for neighbors">
+              Nobody creates a login or remembers a password. Each home has its own page, and it only shows that home&apos;s details.
+            </Feature>
+          </div>
         </div>
       </section>
 
@@ -184,21 +189,15 @@ export default function Landing() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-[2rem] font-black">Priced for a road, not an HOA</h2>
-            <p className="mt-3 max-w-2xl text-[1.1rem] text-stone">A 10-home road paying $300 a home collects $3,000 a year. The Road Fund plan is about 5% of that.</p>
+            <p className="mt-3 max-w-2xl text-[1.1rem] text-stone">Most roads add it to the yearly budget, so it&apos;s split like the plow bill.</p>
           </div>
           <ButtonLink href="/pricing" variant="secondary">
             See full pricing
           </ButtonLink>
         </div>
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <Plan name="Starter" price="Free" lines={["Road setup and share calculator", "One dues request a year", "Ledger and receipts"]} />
-          <Plan name="Road Fund" price="$149/yr" highlight lines={["Unlimited requests and reminders", "Pay contractors, work log, votes", "Documents, AI assistant, savings planner"]} />
-          <Plan name="Road Fund Plus" price="$249/yr" lines={["Everything in Road Fund", "Late-payer toolkit and tax pack", "Several roads in one login"]} />
+        <div className="mt-8">
+          <PlanCards compact />
         </div>
-        <p className="mt-5 text-stone">
-          Neighbors pay $1 per payment plus processing. A {money(30_000)} share by bank costs them {money(achOn300.total - achOn300.share)}; by card {money(cardOn300.total - cardOn300.share)}. The road
-          can choose to cover fees instead.
-        </p>
       </section>
 
       {/* FAQ */}
@@ -207,27 +206,32 @@ export default function Landing() {
           <h2 className="text-[2rem] font-black">Questions people ask</h2>
           <div className="mt-6 divide-y divide-line border-y border-line">
             <Faq q="Do my neighbors need to download an app?">
-              No. They get a text or email with a link that opens their page: what they owe, why, and a button to pay. No account, no password. Neighbors who prefer
-              paper get a printed letter and can pay by check.
+              No. They get a text, email or printed letter from you with a link to their own page: what they owe, why, and how to pay. No account and no password. Anyone
+              can pay by check instead.
             </Faq>
-            <Faq q="Who holds the money?">
-              The road does. Each road gets its own payment account through Stripe Connect, and payments go straight to it. Road Fund never holds the road&apos;s money.
+            <Faq q="Will my neighbors think the text is a scam?">
+              That&apos;s why every message names you and the road, gives the amount and what it&apos;s for, and tells them how to check with you without tapping the link.
+              Before the first one goes out, Road Fund prints a short letter from you for each home.
+            </Faq>
+            <Faq q="Where does the money go?">
+              To the bank account you connect through Stripe. If the road has its own account and tax ID (EIN), the money goes there. Most informal roads don&apos;t, so it
+              goes to the captain&apos;s account, and every dollar in and out shows on the record neighbors can see. Road Fund never holds the money.
               <DeploymentNote variant="faq" className="mt-2" />
             </Faq>
-            <Faq q="Does my buyer's lender require a road maintenance agreement?">
-              It depends on the loan. Conventional loans sold to Fannie Mae generally need one unless your state has a default road law. FHA, VA and USDA loans do not.
-              The <Link href="/guide" className="font-semibold text-lake underline">road law guide</Link> has the details and sources.
+            <Faq q="What if a neighbor won't pay?">
+              Most do once there&apos;s a clear amount, a reason and a link. Road Fund sends polite reminders on its own. After that you can send a friendly note, mail a dated
+              letter, set up a payment plan, and if it comes to it, print a small-claims packet with the whole record.
+            </Faq>
+            <Faq q="Does a buyer's lender need a road maintenance agreement?">
+              Some do. Loans sold to Fannie Mae generally need one unless the state has a road-sharing law. FHA and USDA loans need a recorded easement, not an agreement, and
+              sources disagree on VA. The <Link href="/guide" className="font-semibold text-lake underline">road law guide</Link> has the details and links to the rules.
             </Faq>
             <Faq q="Is the agreement legal advice?">
-              No. Road Fund fills a template with your road&apos;s facts and explains each section in plain English. A licensed attorney in your state reviews it before
-              anyone signs, and that review is part of the agreement package.
-            </Faq>
-            <Faq q="What if a neighbor won't pay?">
-              Most do once there&apos;s a clear amount, a reason and a link. For the rest, Road Fund sends reminders, then friendly, formal and final notices, and can set up a
-              payment plan. Plus includes a small-claims packet with the ledger, the agreement and every notice sent.
+              No. Road Fund fills in a standard agreement with your road&apos;s facts and explains each part in plain English. Have a licensed attorney in your state review it
+              before anyone signs.
             </Faq>
             <Faq q="What happens when I stop being the road captain?">
-              Hand the role to another neighbor in one click. The ledger, documents and history stay with the road, not with you.
+              Hand the job to another neighbor from the Neighbors page. The payment record, documents and history stay with the road, not with you.
             </Faq>
           </div>
         </div>
@@ -236,15 +240,15 @@ export default function Landing() {
       <section className="bg-pine">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-14 md:flex-row md:items-center">
           <div className="text-white">
-            <h2 className="text-[1.9rem] font-black">Get this year&apos;s dues in without the chasing.</h2>
-            <p className="mt-2 text-[1.1rem] opacity-90">Set up your road free, or try every feature on a demo road first.</p>
+            <h2 className="text-[1.9rem] font-black">Get this year&apos;s road money in without the chasing</h2>
+            <p className="mt-2 text-[1.1rem] opacity-90">Set up your road free, or look around a sample road first.</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <ButtonLink href="/start" variant="warn" size="lg">
+            <ButtonLink href="/start" variant="warn" size="lg" className="whitespace-nowrap">
               Set up your road
             </ButtonLink>
-            <ButtonLink href="/demo" size="lg" className="border-2 border-white/80 bg-transparent text-white hover:bg-white/10">
-              Try the demo
+            <ButtonLink href="/demo" size="lg" className="whitespace-nowrap border-2 border-white/80 bg-transparent text-white hover:bg-white/10">
+              See a sample road
             </ButtonLink>
           </div>
         </div>
@@ -256,8 +260,8 @@ export default function Landing() {
 function Problem({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-card">
-      <h3 className="text-[1.2rem] font-extrabold">{title}</h3>
-      <p className="mt-2 text-stone">{body}</p>
+      <h3 className="text-[1.25rem] font-extrabold">{title}</h3>
+      <p className="mt-2 text-[1.05rem] text-stone">{body}</p>
     </div>
   );
 }
@@ -269,8 +273,8 @@ function Step({ n, title, icon, children }: { n: number; title: string; icon: Re
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-pine font-display text-[1.1rem] font-black text-white">{n}</span>
         <span className="text-pine">{icon}</span>
       </div>
-      <h3 className="mt-4 text-[1.2rem] font-extrabold">{title}</h3>
-      <p className="mt-2 text-stone">{children}</p>
+      <h3 className="mt-4 text-[1.25rem] font-extrabold">{title}</h3>
+      <p className="mt-2 text-[1.05rem] text-stone">{children}</p>
     </li>
   );
 }
@@ -285,153 +289,46 @@ function Feature({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
-function Offer({ icon, title, price, body }: { icon: React.ReactNode; title: string; price: string; body: string }) {
+function Point({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex gap-4 rounded-[var(--radius-card)] border border-line bg-white p-5 shadow-card">
-      <span className="h-fit rounded-xl bg-sign-50 p-2.5 text-sign-ink">{icon}</span>
-      <div>
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <h3 className="text-[1.15rem] font-extrabold">{title}</h3>
-          <span className="tnum font-bold text-pine">{price}</span>
-        </div>
-        <p className="mt-1 text-stone">{body}</p>
-      </div>
-    </div>
+    <li className="flex gap-3">
+      <span className="mt-0.5 h-fit rounded-lg bg-pine-50 p-1.5 text-pine">{icon}</span>
+      <span className="text-[1.05rem]">{children}</span>
+    </li>
   );
 }
 
 function LetterPreview() {
   const rows: [string, string][] = [
     ["Property", "301 Birch Hollow Ln (Lot 6)"],
-    ["Maintenance agreement", "Signed by 6 of 9 owners; recording pending"],
-    ["Seller's dues", "$367.02 outstanding, due at closing"],
-    ["Road account", "$2,093.53, including $1,200 set aside for repairs"],
-    ["Coming up", "Creek culvert replacement, $1,100, vote in progress"],
+    ["Road agreement", "Signed by 6 of 9 owners; recording pending"],
+    ["Access easement", "Liber 412, Page 88"],
+    ["Seller's dues", "$367.02 owed, can be paid at closing"],
+    ["Road savings", "$1,200 set aside for repairs"],
+    ["Coming up", "Creek culvert, $1,100, vote in progress"],
   ];
   return (
     <div className="rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-lift" aria-label="Sample Road Status Letter">
       <div className="flex items-start justify-between gap-3 border-b border-line pb-4">
         <div>
-          <p className="text-[0.8rem] font-bold uppercase tracking-wider text-stone">Road Status Letter</p>
+          <p className="text-[0.85rem] font-bold uppercase tracking-wider text-stone">Road Status Letter</p>
           <p className="font-display text-[1.3rem] font-extrabold">Birch Hollow Lane</p>
-          <p className="text-[0.9rem] text-stone">Leelanau County, Michigan</p>
+          <p className="text-[0.95rem] text-stone">Leelanau County, Michigan</p>
         </div>
         <div className="rounded-lg bg-paper-2 px-3 py-2 text-right">
-          <p className="text-[0.75rem] font-semibold text-stone">Verify code</p>
+          <p className="text-[0.8rem] font-semibold text-stone">Check code</p>
           <p className="font-mono text-[0.95rem] font-bold">K7QM-2XPD</p>
         </div>
       </div>
       <dl className="divide-y divide-line">
         {rows.map(([k, v]) => (
-          <div key={k} className="grid grid-cols-[9rem_1fr] gap-3 py-2.5 text-[0.95rem]">
+          <div key={k} className="grid grid-cols-[9rem_1fr] gap-3 py-2.5 text-[0.98rem]">
             <dt className="font-semibold text-stone">{k}</dt>
             <dd>{v}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-[0.82rem] text-stone">Sample. Real letters are generated from the road&apos;s live records and valid for 30 days.</p>
-    </div>
-  );
-}
-
-type Mark = "yes" | "part" | "no" | "na";
-const COLS = ["Road Fund", "HOA software", "Payment pages", "Agreement templates", "Group text + Venmo"];
-const ROWS: [string, Mark[]][] = [
-  ["Built for 3 to 30 homes on a road", ["yes", "no", "part", "na", "part"]],
-  ["Split costs by frontage, distance or use", ["yes", "part", "no", "na", "no"]],
-  ["Neighbors pay with no login", ["yes", "no", "yes", "na", "yes"]],
-  ["Bank (ACH) payments", ["yes", "yes", "yes", "na", "part"]],
-  ["State agreement with e-sign, notary and recording", ["yes", "no", "no", "part", "no"]],
-  ["Road Status Letter for closings", ["yes", "no", "no", "no", "no"]],
-  ["Photo log of road work and votes", ["yes", "part", "no", "no", "no"]],
-  ["Pay contractors from the road's account", ["yes", "part", "no", "no", "part"]],
-];
-const PRICES = ["$0–$249", "$468–$588", "$0–$180", "$0–$59 once", "$0"];
-
-function MarkCell({ m }: { m: Mark }) {
-  if (m === "yes")
-    return (
-      <span className="inline-flex items-center gap-1 font-semibold text-pine">
-        <Check className="h-5 w-5" aria-hidden />
-        Yes
-      </span>
-    );
-  if (m === "part")
-    return (
-      <span className="inline-flex items-center gap-1 text-sign-ink">
-        <Minus className="h-5 w-5" aria-hidden />
-        Partly
-      </span>
-    );
-  if (m === "no")
-    return (
-      <span className="inline-flex items-center gap-1 text-stone">
-        <X className="h-5 w-5" aria-hidden />
-        No
-      </span>
-    );
-  return <span className="text-stone">n/a</span>;
-}
-
-function ComparisonTable() {
-  return (
-    <div className="mt-8 overflow-x-auto rounded-[var(--radius-card)] border border-line" tabIndex={0} role="region" aria-label="Comparison table">
-      <table className="w-full min-w-[760px] border-collapse text-left">
-        <caption className="sr-only">Road Fund compared with other ways roads collect dues</caption>
-        <thead className="bg-paper">
-          <tr>
-            <th scope="col" className="px-4 py-3 font-semibold text-stone">
-              Feature
-            </th>
-            {COLS.map((c, i) => (
-              <th key={c} scope="col" className={`px-4 py-3 ${i === 0 ? "bg-pine-50 font-extrabold text-pine" : "font-semibold"}`}>
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {ROWS.map(([label, marks]) => (
-            <tr key={label} className="border-t border-line">
-              <th scope="row" className="px-4 py-3 font-semibold">
-                {label}
-              </th>
-              {marks.map((m, i) => (
-                <td key={i} className={`px-4 py-3 ${i === 0 ? "bg-pine-50/60" : ""}`}>
-                  <MarkCell m={m} />
-                </td>
-              ))}
-            </tr>
-          ))}
-          <tr className="border-t border-line">
-            <th scope="row" className="px-4 py-3 font-semibold">
-              Yearly price, 10-home road
-            </th>
-            {PRICES.map((p, i) => (
-              <td key={i} className={`tnum px-4 py-3 font-semibold ${i === 0 ? "bg-pine-50/60 text-pine" : ""}`}>
-                {p}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Plan({ name, price, lines, highlight }: { name: string; price: string; lines: string[]; highlight?: boolean }) {
-  return (
-    <div className={`rounded-[var(--radius-card)] border-2 bg-white p-6 ${highlight ? "border-pine shadow-lift" : "border-line"}`}>
-      <p className="font-bold">{name}</p>
-      <p className="tnum mt-1 font-display text-[2rem] font-black">{price}</p>
-      <ul className="mt-4 space-y-2">
-        {lines.map((l) => (
-          <li key={l} className="flex gap-2">
-            <Check className="mt-0.5 h-5 w-5 shrink-0 text-pine" aria-hidden />
-            {l}
-          </li>
-        ))}
-      </ul>
+      <p className="mt-3 text-[0.88rem] text-stone">Sample. Real letters come from the road&apos;s own records and are good for 30 days.</p>
     </div>
   );
 }
@@ -439,13 +336,13 @@ function Plan({ name, price, lines, highlight }: { name: string; price: string; 
 function Faq({ q, children }: { q: string; children: React.ReactNode }) {
   return (
     <details className="group py-4">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[1.1rem] font-bold">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-[1.15rem] font-bold">
         {q}
-        <span className="text-pine transition-transform group-open:rotate-45" aria-hidden>
+        <span className="text-[1.4rem] text-pine transition-transform group-open:rotate-45" aria-hidden>
           +
         </span>
       </summary>
-      <div className="mt-2 text-stone">{children}</div>
+      <div className="mt-2 text-[1.05rem] text-stone">{children}</div>
     </details>
   );
 }

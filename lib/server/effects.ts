@@ -37,7 +37,8 @@ async function safe(label: string, fn: () => Promise<unknown>) {
   }
 }
 
-const METHOD: Record<string, string> = { ach: "bank transfer", card: "card", check: "check", cash: "cash", other: "other" };
+const HOW: Record<string, string> = { ach: "from a checking account", card: "by card", check: "by check", cash: "in cash" };
+const METHOD: Record<string, string> = { ach: "checking account", card: "card", check: "check", cash: "cash", other: "other" };
 
 /** Receipt to the neighbor, and a heads-up to the captain when the neighbor paid online. */
 export async function notifyPayment(road: Road, paymentId: string, origin: string): Promise<void> {
@@ -70,7 +71,7 @@ export async function notifyPayment(road: Road, paymentId: string, origin: strin
           ]
             .filter(Boolean)
             .join("\n"),
-          clearing ? `Bank payments take about 4 business days to clear. Your page shows it as clearing until then.` : null,
+          clearing ? `Payments from a checking account take about 4 business days to arrive. Your page shows it as on its way until then.` : null,
           `See your receipt and what the road spends money on:\n${neighborUrl(origin, road, home, `receipt-${p.id}`)}`,
           `Questions? Reply to this email to reach ${cap ? displayName(cap) : "your road captain"}.`,
         ]
@@ -88,9 +89,9 @@ export async function notifyPayment(road: Road, paymentId: string, origin: strin
         fromName: "Road Fund",
         subject: `${home.label} paid ${money(p.amount)}`,
         text: [
-          `${displayName(home)} (${home.label}) paid ${money(p.amount)} by ${METHOD[p.method]}${request ? ` toward ${request.title}` : ""}.`,
+          `${displayName(home)} (${home.label}) paid ${money(p.amount)} ${HOW[p.method] ?? ""}${request ? ` toward ${request.title}` : ""}.`,
           prog ? `${prog.homesPaid} of ${prog.homesBilled} homes paid. ${money(prog.collected + prog.processing)} of ${money(prog.billed)} collected.` : null,
-          clearing ? `It's a bank transfer, so it clears in about 4 business days.` : null,
+          clearing ? `It's from a checking account, so it arrives in about 4 business days.` : null,
           `${origin}/app/money`,
         ]
           .filter(Boolean)
@@ -135,7 +136,7 @@ export async function notifyLetterRequest(road: Road, requestId: string, origin:
       text: [
         `We sent your request to the road captain for ${road.name} (${road.county} County, ${road.state}).`,
         `When the letter is issued, we'll email it to you with a code you can verify at ${origin}/verify.`,
-        r.paidIntentId ? `Your $75 payment is on file. If the road can't issue the letter, it's refunded in full.` : null,
+        r.paidIntentId ? `Your letter fee is on file. If the road can't issue the letter, it's refunded in full.` : null,
       ]
         .filter(Boolean)
         .join("\n\n"),
@@ -185,7 +186,7 @@ export async function afterCaptainChange(before: Road, after: Road, commands: Co
             text: [
               `${after.name} can't issue a Road Status Letter for ${was.propertyAddress}.`,
               c.note ? `The road captain wrote: ${c.note}` : null,
-              refunded ? `Your $75 payment has been refunded. It shows on your card in 5 to 10 days.` : null,
+              refunded ? `Your letter fee has been refunded. It shows on your card in 5 to 10 days.` : null,
               `Reply to this email to reach the road captain.`,
             ]
               .filter(Boolean)
@@ -273,8 +274,8 @@ export async function notifyPurchase(road: Road, sessionId: string, kind: string
       sendEmail({
         to: cap.email,
         fromName: "Road Fund",
-        subject: `${road.name} is on the ${road.plan === "plus" ? "Road Fund Plus" : "Road Fund"} plan`,
-        text: `Thanks. ${road.name} now has unlimited dues requests, contractor payments, votes, documents and the savings plan${road.plan === "plus" ? ", plus the late-payer toolkit and tax pack" : ""}. Stripe emails the receipt. You can see receipts, change the card or cancel from Settings.\n\n${origin}/app/settings`,
+        subject: `${road.name} is on the Road Fund plan`,
+        text: `Thank you. ${road.name} can now send as many bills as it needs, mail late notices, set up payment plans, pay contractors and hold votes. Stripe emails you the receipt. To see receipts, change the card or cancel, go to Settings.\n\n${origin}/app/settings`,
       }),
     );
   }

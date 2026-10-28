@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { BudgetEditor } from "@/components/app/budget-editor";
 import { PageHeader } from "@/components/app/common";
@@ -20,10 +20,19 @@ export default function NewRequestPage() {
   const { road, dispatch, now } = useRoad();
   const year = now.getFullYear();
   const hasAnnual = road.requests.some((r) => r.kind === "annual" && r.createdAt.startsWith(String(year)));
-  const [kind, setKind] = useState<"annual" | "special">(hasAnnual ? "special" : "annual");
-  const [title, setTitle] = useState(hasAnnual ? "" : `${year} road dues`);
+  // Arriving from a passed vote: bill the project before the work starts.
+  const voteId = useSearchParams().get("vote");
+  const vote = road.votes.find((v) => v.id === voteId && v.outcome === "passed" && v.amount && !v.requestId) ?? null;
+  const [kind, setKind] = useState<"annual" | "special">(vote || hasAnnual ? "special" : "annual");
+  const [title, setTitle] = useState(vote ? vote.question.replace(/\?$/, "").replace(/ for \$[\d,.]+$/, "") : hasAnnual ? "" : `${year} road dues`);
   const [budget, setBudget] = useState<BudgetLine[]>(() =>
-    hasAnnual ? [{ id: uid("bud"), label: "", category: "other", amount: 0 }] : road.budget.length ? road.budget.map((b) => ({ ...b, id: uid("bud") })) : suggestedBudget(road.lengthFt, road.surface),
+    vote
+      ? [{ id: uid("bud"), label: vote.question.replace(/\?$/, ""), category: "other", amount: vote.amount ?? 0 }]
+      : hasAnnual
+        ? [{ id: uid("bud"), label: "", category: "other", amount: 0 }]
+        : road.budget.length
+          ? road.budget.map((b) => ({ ...b, id: uid("bud") }))
+          : suggestedBudget(road.lengthFt, road.surface),
   );
   const [split, setSplit] = useState(road.split);
   const [dueDate, setDueDate] = useState(addDays(isoDate(now), 30));
@@ -54,6 +63,7 @@ export default function NewRequestPage() {
       message: note,
       status: "open",
       sentAt: null,
+      voteId: vote?.id ?? null,
     };
     const cmds: Command[] = [{ type: "request.create", request }];
     if (kind === "annual") cmds.unshift({ type: "road.budget", budget: request.budget });
@@ -64,8 +74,13 @@ export default function NewRequestPage() {
 
   return (
     <>
-      <PageHeader title="New dues request" back={{ href: "/app/money", label: "Money" }} sub="Set the amount, check each share, then send." />
+      <PageHeader title={vote ? "Bill the project" : "New bill"} back={{ href: "/app/money", label: "Money" }} sub="Set the amount, check each share, then send it." />
       <div className="space-y-6">
+        {vote && (
+          <Callout tone="ok" title="Collect before the work starts">
+            Neighbors approved this by vote. Each home pays its share now, and you pay the contractor once the money is in, so nobody has to front it.
+          </Callout>
+        )}
         <Card className="space-y-5 p-5">
           <Choice
             name="kind"
@@ -77,7 +92,7 @@ export default function NewRequestPage() {
             }}
             options={[
               { value: "annual", label: "Yearly dues", hint: "The regular budget: plowing, grading, gravel, savings." },
-              { value: "special", label: "One-time assessment", hint: "A specific project, like a culvert or paving, usually after a vote." },
+              { value: "special", label: "Project share", hint: "One job, like a culvert or new gravel, usually after a vote." },
             ]}
           />
           <div className="grid gap-4 sm:grid-cols-2">

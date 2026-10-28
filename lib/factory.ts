@@ -1,4 +1,3 @@
-import { isoDate, yearOf } from "./dates.ts";
 import { roadCode, secretToken, uid } from "./ids.ts";
 import type {
   AgreementTerms,
@@ -6,8 +5,6 @@ import type {
   ExpenseCategory,
   Home,
   ISOTime,
-  Reserve,
-  ReserveItem,
   Road,
   Surface,
 } from "./types.ts";
@@ -61,25 +58,6 @@ export function suggestedBudget(lengthFt: number, surface: Surface, snow = true)
   ].filter(Boolean) as BudgetLine[];
 }
 
-export function defaultReserveItems(lengthFt: number, surface: Surface, year: number): ReserveItem[] {
-  const len = Math.max(lengthFt, 300);
-  const r = (cents: number) => Math.round(cents / 5_000) * 5_000;
-  if (surface === "paved" || surface === "chip-seal") {
-    return [
-      { id: uid("res"), name: "Crack sealing", cost: r(len * 60), lifeYears: 3, lastDoneYear: year - 1 },
-      { id: uid("res"), name: "Seal coat", cost: r(len * 200), lifeYears: 5, lastDoneYear: year - 2 },
-      { id: uid("res"), name: "Mill and overlay", cost: r(len * 3000), lifeYears: 20, lastDoneYear: year - 8 },
-      { id: uid("res"), name: "Culvert replacement", cost: 220_000, lifeYears: 25, lastDoneYear: year - 15 },
-    ];
-  }
-  return [
-    { id: uid("res"), name: "Reshape crown and ditches", cost: r(len * 100), lifeYears: 6, lastDoneYear: year - 2 },
-    { id: uid("res"), name: "New gravel (3-inch lift)", cost: r(len * 300), lifeYears: 10, lastDoneYear: year - 5 },
-    { id: uid("res"), name: "Culvert replacement", cost: 220_000, lifeYears: 25, lastDoneYear: year - 18 },
-    { id: uid("res"), name: "Ditch cleaning", cost: r(len * 35), lifeYears: 3, lastDoneYear: year - 1 },
-  ];
-}
-
 export function defaultTerms(roadName: string): AgreementTerms {
   return {
     repairThreshold: "majority",
@@ -124,16 +102,6 @@ export function newHome(partial: Partial<Home> & { label: string }, at: ISOTime 
   };
 }
 
-export function defaultReserve(lengthFt: number, surface: Surface, year: number): Reserve {
-  const items = defaultReserveItems(lengthFt, surface, year);
-  return {
-    setAside: 0,
-    yearlyContribution: items.reduce((a, i) => a + Math.round(i.cost / i.lifeYears), 0),
-    inflationPct: 3,
-    items,
-  };
-}
-
 export interface NewRoadInput {
   name: string;
   state: string;
@@ -146,7 +114,6 @@ export interface NewRoadInput {
 }
 
 export function createRoad(input: NewRoadInput, at: ISOTime = new Date().toISOString()): Road {
-  const year = yearOf(isoDate(new Date(at)));
   return {
     schema: 1,
     id: uid("road"),
@@ -168,10 +135,8 @@ export function createRoad(input: NewRoadInput, at: ISOTime = new Date().toISOSt
     account: { status: "none", bankName: "", last4: "", connectedAt: null, openingBalance: 0, openingDate: null },
     settings: {
       payerCoversFees: true,
-      defaultPayMethod: "ach",
       showPaidNames: false,
       reminderDays: [-3, 7, 21],
-      weather: { enabled: true, snowInches: 3, contractorId: null },
     },
     homes: input.homes,
     requests: [],
@@ -194,8 +159,7 @@ export function createRoad(input: NewRoadInput, at: ISOTime = new Date().toISOSt
     },
     letters: [],
     letterRequests: [],
-    reserve: defaultReserve(input.lengthFt, input.surface, year),
-    bids: [],
+    reserve: { setAside: 0 },
     plans: [],
     notices: [],
     messages: [],

@@ -13,12 +13,10 @@ import type {
   ISOTime,
   Payment,
   PaymentPlan,
-  Reserve,
   Road,
   Vote,
 } from "./types.ts";
 
-export const ONE_099_THRESHOLD = 200_000; // $2,000 for payments made in 2026 and later
 
 export function homeMap(road: Road): Map<string, Home> {
   return new Map(road.homes.map((h) => [h.id, h]));
@@ -239,35 +237,6 @@ export function yearTotals(road: Road, year: number): YearTotals {
   };
 }
 
-export interface ContractorTotal {
-  id: string;
-  name: string;
-  trade: string;
-  paid: number;
-  w9OnFile: boolean;
-  isCorporation: boolean;
-  needs1099: boolean;
-}
-
-export function contractorTotals(road: Road, year: number): ContractorTotal[] {
-  return road.contractors
-    .map((c) => {
-      const paid = road.expenses
-        .filter((e) => e.contractorId === c.id && e.status === "paid" && e.paidAt && yearOf(e.paidAt) === year)
-        .reduce((a, e) => a + e.amount, 0);
-      return {
-        id: c.id,
-        name: c.name,
-        trade: c.trade,
-        paid,
-        w9OnFile: c.w9OnFile,
-        isCorporation: c.isCorporation,
-        needs1099: paid >= ONE_099_THRESHOLD && !c.isCorporation,
-      };
-    })
-    .sort((a, b) => b.paid - a.paid);
-}
-
 export type VoteStatus = "open" | "ready" | "passed" | "failed";
 
 export interface VoteState {
@@ -424,62 +393,6 @@ export function nextActions(road: Road, now: Date): NextAction[] {
   return out;
 }
 
-export interface ReserveYear {
-  year: number;
-  start: number;
-  contribution: number;
-  spend: { name: string; cost: number }[];
-  end: number;
-}
-
-export interface ReserveProjection {
-  rows: ReserveYear[];
-  lowest: number;
-  lowestYear: number;
-  /** Smallest yearly contribution that never lets the fund go below $0 over the horizon. */
-  recommended: number;
-  straightLine: number;
-}
-
-export function reserveProjection(reserve: Reserve, startYear: number, years = 10): ReserveProjection {
-  const infl = reserve.inflationPct / 100;
-  const due: { year: number; name: string; cost: number }[] = [];
-  for (const item of reserve.items) {
-    // Overdue work lands this year, then repeats on its normal cycle.
-    const first = Math.max(item.lastDoneYear + item.lifeYears, startYear);
-    for (let y = first; y < startYear + years; y += item.lifeYears) {
-      due.push({ year: y, name: item.name, cost: Math.round(item.cost * Math.pow(1 + infl, y - startYear)) });
-    }
-  }
-
-  const rows: ReserveYear[] = [];
-  let balance = reserve.setAside;
-  let lowest = Infinity;
-  let lowestYear = startYear;
-  for (let i = 0; i < years; i++) {
-    const year = startYear + i;
-    const spend = due.filter((d) => d.year === year).map(({ name, cost }) => ({ name, cost }));
-    const start = balance;
-    const end = start + reserve.yearlyContribution - spend.reduce((a, s) => a + s.cost, 0);
-    rows.push({ year, start, contribution: reserve.yearlyContribution, spend, end });
-    if (end < lowest) {
-      lowest = end;
-      lowestYear = year;
-    }
-    balance = end;
-  }
-
-  // Need C so that setAside + C*t - cumulativeSpend(t) >= 0 for every year t (1-based).
-  let recommended = 0;
-  let cumulative = 0;
-  for (let i = 0; i < years; i++) {
-    cumulative += rows[i].spend.reduce((a, s) => a + s.cost, 0);
-    recommended = Math.max(recommended, Math.ceil((cumulative - reserve.setAside) / (i + 1)));
-  }
-  const straightLine = reserve.items.reduce((a, i) => a + Math.round(i.cost / i.lifeYears), 0);
-  return { rows, lowest: lowest === Infinity ? reserve.setAside : lowest, lowestYear, recommended: Math.max(0, Math.ceil(recommended / 100) * 100), straightLine };
-}
-
 export function agreementSigned(road: Road): number {
   return road.agreement.signatures.filter((s) => s.version === road.agreement.version).length;
 }
@@ -501,9 +414,6 @@ export function upcomingWork(road: Road, now: Date): { title: string; amount: nu
       out.push({ title: v.question, amount: v.amount, status: "Approved by vote" });
     }
   }
-  for (const b of road.bids.filter((x) => x.status === "open")) out.push({ title: b.title, amount: null, status: "Collecting bids" });
-  const proj = reserveProjection(road.reserve, now.getFullYear(), 3);
-  for (const r of proj.rows) for (const s of r.spend) out.push({ title: s.name, amount: s.cost, status: `Planned for ${r.year}` });
   return out.slice(0, 8);
 }
 
@@ -516,3 +426,16 @@ export function dueSoonText(dueDate: ISODate, now: Date): string {
 }
 
 export { addDays };
+
+/** A neighbor's recent "my check is in the mail" note for this bill, if any (good for 30 days). */
+export function checkInMail(road: Road, homeId: string, requestId: string, now: Date) {
+  return (road.checkNotes ?? []).find((n) => n.homeId === homeId && n.requestId === requestId && now.getTime() - Date.parse(n.at) < 30 * 86_400_000) ?? null;
+}
+
+/** "Approved by vote on May 3: 6 of 9 homes voted yes." The consent record behind a project bill. */
+export function approvalText(road: Road, request: DuesRequest): string | null {
+  const v = request.voteId ? road.votes.find((x) => x.id === request.voteId) : null;
+  if (!v || v.outcome !== "passed" || !v.closedAt) return null;
+  const yes = v.ballots.filter((b) => b.choice === "yes").length;
+  return `Approved by vote on ${fmtDate(v.closedAt.slice(0, 10))}: ${yes} of ${road.homes.length} homes voted yes.`;
+}

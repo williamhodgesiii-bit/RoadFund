@@ -4,7 +4,7 @@ import Stripe from "stripe";
 import { buildPayment, CommandError } from "../commands.ts";
 import { addDays, isoDate } from "../dates.ts";
 import { computeCharge } from "../fees.ts";
-import { LETTER_FEE } from "../letter.ts";
+import { AGREEMENT_PACKAGE, LETTER_FEE, planPrice } from "../pricing.ts";
 import type { Home, Plan, Road } from "../types.ts";
 import { kvEnabled } from "./kv.ts";
 import { mutate } from "./store.ts";
@@ -37,8 +37,8 @@ export function usesStripe(road: Road): boolean {
   return stripeEnabled && !road.demo;
 }
 
-export const PLAN_PRICE: Record<Exclude<Plan, "starter">, number> = { roadfund: 14_900, plus: 24_900 };
-export const AGREEMENT_PACKAGE = 24_900;
+/** Old subscriptions may still say "plus", a plan that was folded into Road Fund. */
+const isPaidPlan = (p: string | undefined): boolean => p === "roadfund" || p === "plus";
 
 // ---------- Connect: each road gets its own Express account ----------
 
@@ -211,7 +211,8 @@ export async function failDuesSession(session: Stripe.Checkout.Session): Promise
 
 // ---------- Road Fund purchases: plans, agreement package ----------
 
-export async function planCheckout(road: Road, plan: Exclude<Plan, "starter">, captain: Home | null, origin: string): Promise<string> {
+export async function planCheckout(road: Road, captain: Home | null, origin: string): Promise<string> {
+  const plan: Plan = "roadfund";
   const session = await stripe().checkout.sessions.create({
     mode: "subscription",
     line_items: [
@@ -219,9 +220,9 @@ export async function planCheckout(road: Road, plan: Exclude<Plan, "starter">, c
         quantity: 1,
         price_data: {
           currency: "usd",
-          unit_amount: PLAN_PRICE[plan],
+          unit_amount: planPrice(road.homes.length),
           recurring: { interval: "year" },
-          product_data: { name: plan === "plus" ? "Road Fund Plus" : "Road Fund", description: `Yearly plan for ${road.name}` },
+          product_data: { name: "Road Fund", description: `Yearly plan for ${road.name} (${road.homes.length} homes)` },
         },
       },
     ],
@@ -256,8 +257,8 @@ export async function recordRoadPurchase(session: Stripe.Checkout.Session): Prom
   if (!m.roadId || session.status !== "complete") return null;
   const at = new Date().toISOString();
   const actor = { kind: "system" as const, homeId: null, name: "Stripe" };
-  if (m.kind === "plan" && (m.plan === "roadfund" || m.plan === "plus")) {
-    const plan = m.plan;
+  if (m.kind === "plan" && isPaidPlan(m.plan)) {
+    const plan: Plan = "roadfund";
     return mutate(m.roadId, (road) => ({
       commands:
         road.billing?.subscriptionId === session.subscription && road.plan === plan
@@ -290,8 +291,8 @@ export async function billingPortalUrl(customerId: string, origin: string): Prom
 /** Renewals and plan changes: keep the plan and "paid through" date in step with Stripe. */
 export async function syncSubscription(sub: Stripe.Subscription): Promise<void> {
   const roadId = sub.metadata?.roadId;
-  const plan = sub.metadata?.plan;
-  if (!roadId || (plan !== "roadfund" && plan !== "plus")) return;
+  if (!roadId || !isPaidPlan(sub.metadata?.plan)) return;
+  const plan: Plan = "roadfund";
   if (sub.status !== "active" && sub.status !== "trialing") return endSubscription(sub);
   // current_period_end moved from the subscription to its items in newer API versions.
   const end = (sub as unknown as { current_period_end?: number }).current_period_end ?? sub.items?.data?.[0]?.current_period_end;
@@ -343,7 +344,7 @@ export async function retrieveSession(id: string): Promise<Stripe.Checkout.Sessi
 
 export type { Stripe };
 
-/** Creates the title company's letter request once its $75 payment completes. Idempotent. */
+/** Creates the title company's letter request once its letter fee is paid. Idempotent. */
 export async function recordLetterSession(session: Stripe.Checkout.Session): Promise<{ road: Road; requestId: string } | null> {
   const m = session.metadata ?? {};
   if (m.kind !== "letter" || !m.roadId || session.status !== "complete" || session.payment_status !== "paid") return null;
@@ -370,7 +371,7 @@ export async function recordLetterSession(session: Stripe.Checkout.Session): Pro
               closingDate: /^\d{4}-\d{2}-\d{2}$/.test(m.closingDate ?? "") ? m.closingDate! : null,
               status: "new",
               letterId: null,
-              note: `${m.note ? `${m.note} · ` : ""}$75 letter fee paid`,
+              note: `${m.note ? `${m.note} · ` : ""}letter fee paid`,
               paidIntentId: intent,
             },
           },

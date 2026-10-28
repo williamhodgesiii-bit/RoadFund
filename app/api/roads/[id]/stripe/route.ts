@@ -22,7 +22,7 @@ type Body =
   | { action: "connect" }
   | { action: "refresh" }
   | { action: "dashboard" }
-  | { action: "plan"; plan: "roadfund" | "plus" }
+  | { action: "plan" }
   | { action: "agreement" }
   | { action: "portal" }
   | { action: "confirm"; sessionId: string };
@@ -68,8 +68,8 @@ export async function POST(req: Request, { params }: Params) {
         return json({ url: await dashboardUrl(road.account.stripeAccountId) });
       }
       case "plan":
-        if (body.plan !== "roadfund" && body.plan !== "plus") throw new CommandError("Unknown plan.");
-        return json({ url: await planCheckout(road, body.plan, captain, origin) });
+        if (road.plan === "roadfund") throw new CommandError("This road is already on the Road Fund plan.", 409);
+        return json({ url: await planCheckout(road, captain, origin) });
       case "agreement":
         return json({ url: await agreementCheckout(road, captain, origin) });
       case "portal":

@@ -24,15 +24,15 @@ export default function MoneyPage() {
     <>
       <PageHeader
         title="Money"
-        sub="Dues requests, bills, the ledger and the road's account."
+        sub="Bills to neighbors, bills from contractors, and the road's bank account."
         actions={
           atLimit ? (
             <Button onClick={() => setGate(true)} icon={<Plus className="h-5 w-5" aria-hidden />}>
-              New dues request
+              New bill
             </Button>
           ) : (
             <ButtonLink href="/app/money/requests/new" icon={<Plus className="h-5 w-5" aria-hidden />}>
-              New dues request
+              New bill
             </ButtonLink>
           )
         }
@@ -40,7 +40,7 @@ export default function MoneyPage() {
       <MoneyNav />
 
       <Card className="mb-6 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
-        <Stat label="Balance" value={money(acct.balance)} sub={acct.pending ? `${money(acct.pending)} clearing` : "All cleared"} />
+        <Stat label="Balance" value={money(acct.balance)} sub={acct.pending ? `${money(acct.pending)} on its way` : "All cleared"} />
         <Stat label="Available" value={money(acct.available)} />
         <Stat label={`In, ${year}`} value={money(totals.duesIn)} tone="ok" />
         <Stat label={`Spent, ${year}`} value={money(totals.spent)} />
@@ -49,7 +49,7 @@ export default function MoneyPage() {
       <h2 className="mb-3 text-[1.3rem] font-extrabold">Dues requests</h2>
       {requests.length === 0 ? (
         <Card>
-          <Empty title="No dues requests yet" action={<ButtonLink href="/app/money/requests/new">Create one</ButtonLink>}>
+          <Empty title="No bills yet" action={<ButtonLink href="/app/money/requests/new">Create one</ButtonLink>}>
             Set this year&apos;s budget, check each home&apos;s share, and send everyone a pay link.
           </Empty>
         </Card>
@@ -90,7 +90,7 @@ export default function MoneyPage() {
       )}
 
       <Dialog open={gate} onClose={() => setGate(false)} title="One request a year on Starter">
-        <PlanGate needs="roadfund" feature="Unlimited dues requests" pitch="Starter covers one dues request a year. Road Fund adds unlimited requests and special assessments, automatic reminders, contractor payments, votes and the work log.">
+        <PlanGate needs="roadfund" feature="More than one bill a year" pitch="The free plan covers one bill a year. Road Fund adds as many bills as the road needs, including project bills after a vote, plus contractor payments, votes and the work log.">
           <div className="space-y-4">
             <p>You&apos;re on Road Fund now.</p>
             <ButtonLink href="/app/money/requests/new" block>

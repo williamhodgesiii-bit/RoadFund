@@ -48,6 +48,8 @@ export function LetterBody({ letter, draft = false }: { letter: StatusLetter; dr
         {letter.closingDate && <Row k="Closing date" v={fmtDate(letter.closingDate)} />}
         <Row k="Property" v={`${s.property.address || s.property.label} (${s.property.label})`} />
         {s.property.owners && <Row k="Owner of record (per road)" v={s.property.owners} />}
+        <Row k="Recorded access easement" v={s.easementRef || "Not provided by the road"} />
+        <Row k="Open all year" v={s.allWeather === true ? "Yes, passable by an ordinary car in every season" : s.allWeather === false ? "No, it can close in some seasons" : "Not stated"} />
       </dl>
 
       <Section n={1} title="Maintenance agreement">
@@ -70,7 +72,7 @@ export function LetterBody({ letter, draft = false }: { letter: StatusLetter; dr
             {d.title && <TR k="Current billing" v={d.title} />}
             <TR k="Billed" v={money(d.billed)} />
             <TR k="Paid" v={money(d.paid)} />
-            <TR k="Outstanding" v={d.outstanding > 0 ? `${money(d.outstanding)}${d.dueDate ? ` (due ${fmtDate(d.dueDate)})` : ""}` : "None"} strong />
+            <TR k="Still owed" v={d.outstanding > 0 ? `${money(d.outstanding)}${d.dueDate ? ` (due ${fmtDate(d.dueDate)})` : ""}` : "None"} strong />
             {d.lastPaidAt && <TR k="Last payment" v={fmtDate(d.lastPaidAt)} />}
             {s.annualShare !== null && <TR k="Most recent yearly share" v={`${money(s.annualShare)}${s.sharePct !== null ? ` (${s.sharePct.toFixed(1)}% of the road)` : ""}`} />}
           </tbody>
@@ -83,14 +85,14 @@ export function LetterBody({ letter, draft = false }: { letter: StatusLetter; dr
         <table className="w-full max-w-xl">
           <tbody>
             <TR k="Road account balance" v={money(s.account.balance)} strong />
-            {s.account.pending > 0 && <TR k="Of which still clearing" v={money(s.account.pending)} />}
+            {s.account.pending > 0 && <TR k="Of which still on its way" v={money(s.account.pending)} />}
             <TR k="Set aside for major repairs" v={money(s.account.reserve)} />
             <TR k={`${s.roadDues.year} dues collected`} v={`${money(s.roadDues.collected)} of ${money(s.roadDues.billed)} (${s.roadDues.homesPaid} of ${s.roadDues.homesBilled} lots paid in full)`} />
           </tbody>
         </table>
       </Section>
 
-      <Section n={4} title="Upcoming work and assessments">
+      <Section n={4} title="Upcoming work and project bills">
         {s.upcoming.length === 0 ? (
           <p>None planned.</p>
         ) : (

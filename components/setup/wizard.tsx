@@ -35,8 +35,8 @@ import { center as centerOf, fmtFeet, locateOnPath, pathLengthFt } from "@/lib/g
 import { uid } from "@/lib/ids";
 import { money } from "@/lib/money";
 import { computeShares, METHOD_INFO } from "@/lib/split";
-import { STATES, stateName } from "@/lib/states";
-import { budgetSummary, messageTemplate } from "@/lib/templates";
+import { defaultLaw, stateName, STATES } from "@/lib/states";
+import { budgetSummary, fillTokens, firstName, TOKEN_TEMPLATES, verifyLine } from "@/lib/templates";
 import type { BudgetLine, DuesRequest, ExpenseCategory, Home, LatLng, SplitMethod, SplitSettings, Surface } from "@/lib/types";
 
 const RoadMap = dynamic(() => import("@/components/road-map").then((m) => m.RoadMap), { ssr: false, loading: () => <div className="h-[360px] rounded-xl bg-paper-2" /> });
@@ -82,7 +82,7 @@ const STEPS = [
   { title: "Pick how to split costs", minutes: 1 },
   { title: "Connect the road's bank account", minutes: 2 },
   { title: "This year's budget", minutes: 1 },
-  { title: "Send the first dues request", minutes: 1 },
+  { title: "Send the first bill", minutes: 1 },
 ];
 
 function blankHome(n: number): DraftHome {
@@ -383,7 +383,15 @@ function StepRoad({ d, set, pathLen }: StepProps & { pathLen: number | null }) {
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="State" htmlFor="w-state">
-          <Select id="w-state" value={d.state} onChange={(e) => set({ state: e.target.value })}>
+          <Select
+            id="w-state"
+            value={d.state}
+            onChange={(e) => {
+              // Start from the split the state's own road law uses, if it has one.
+              const law = defaultLaw(e.target.value);
+              set({ state: e.target.value, split: law ? { ...d.split, method: law.split, basePct: law.split === "segment" ? 50 : 0 } : d.split });
+            }}
+          >
             <option value="">Choose…</option>
             {STATES.map((s) => (
               <option key={s.code} value={s.code}>
@@ -636,21 +644,33 @@ function StepHomes({ d, set }: StepProps) {
 }
 
 function StepSplit({ d, set, shares, budgetTotal, lengthFt, goHomes }: StepProps & { shares: ReturnType<typeof computeShares>; budgetTotal: number; lengthFt: number; goHomes: () => void }) {
-  const methods: SplitMethod[] = ["equal", "segment", "distance", "frontage"];
+  const main: SplitMethod[] = ["equal", "segment"];
+  const others: SplitMethod[] = ["distance", "frontage"];
   const usesBase = d.split.method !== "equal";
+  const law = defaultLaw(d.state);
+  const pick = (m: SplitMethod) => set({ split: { ...d.split, method: m, basePct: m === "equal" ? 0 : d.split.basePct || (m === "segment" ? 50 : 0) } });
+  const option = (m: SplitMethod) => ({ value: m, label: METHOD_INFO[m].name, hint: `${METHOD_INFO[m].short}${METHOD_INFO[m].needs ? ` Needs ${METHOD_INFO[m].needs}.` : ""}` });
   return (
     <div className="space-y-6">
-      <Choice
-        name="split"
-        value={d.split.method}
-        onChange={(m) => set({ split: { ...d.split, method: m, basePct: m === "equal" ? 0 : d.split.basePct || (m === "segment" ? 50 : 0) } })}
-        options={methods.map((m) => ({
-          value: m,
-          label: METHOD_INFO[m].name,
-          hint: `${METHOD_INFO[m].short}${METHOD_INFO[m].needs ? ` Needs ${METHOD_INFO[m].needs}.` : ""}`,
-          badge: m === "segment" ? <span className="rounded bg-sign-50 px-1.5 py-0.5 text-[0.75rem] font-bold text-sign-ink">Fairest on dead-end roads</span> : undefined,
-        }))}
-      />
+      {law ? (
+        <Callout tone="info" title={`${stateName(d.state)} law already says neighbors share road costs`}>
+          {law.rule} ({law.citation}){" "}
+          {d.split.method !== law.split && (
+            <button className="font-semibold text-lake underline" onClick={() => pick(law.split)}>
+              Use {METHOD_INFO[law.split].name.toLowerCase()}
+            </button>
+          )}
+        </Callout>
+      ) : (
+        <p className="text-[1.05rem]">Most roads start with equal shares. It&apos;s the easiest to explain and causes the fewest arguments.</p>
+      )}
+      <Choice name="split" value={d.split.method} onChange={pick} options={main.map(option)} />
+      <details className="rounded-xl border border-line bg-white p-4" open={others.includes(d.split.method)}>
+        <summary className="cursor-pointer font-semibold">Other ways to split</summary>
+        <div className="mt-3">
+          <Choice name="split-other" value={others.includes(d.split.method) ? d.split.method : ("" as SplitMethod)} onChange={pick} options={others.map(option)} />
+        </div>
+      </details>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Vacant lots pay" htmlFor="w-vacant">
           <Select id="w-vacant" value={d.split.vacantWeight} onChange={(e) => set({ split: { ...d.split, vacantWeight: Number(e.target.value) } })}>
@@ -726,15 +746,16 @@ function StepBank({ d, set }: StepProps) {
     return (
       <div className="space-y-6">
         <p className="text-[1.05rem]">
-          Neighbors&apos; payments go straight into an account in the road&apos;s name. Road Fund never holds the money. Stripe, the payment company, sets up the account
+          Neighbors&apos; online payments go to the bank account you connect: the road&apos;s own, or yours if the road doesn&apos;t have one. Road Fund never holds the money.
+          Stripe, the payment company, sets up the connection
           and checks the details.
         </p>
         <Callout tone="info" title="You'll do this right after setup">
-          It takes about 10 minutes on Stripe&apos;s site. Have the road&apos;s bank account and routing number ready, and the road&apos;s tax ID (EIN) if it has one. You&apos;ll
+          It takes about 10 minutes on Stripe&apos;s site. Have the account and routing numbers for the bank account you&apos;ll use, and the road&apos;s tax ID (EIN) if it has one. You&apos;ll
           find it under Money, then Bank account.
         </Callout>
         {emailField}
-        <p className="text-stone">Until it&apos;s connected, neighbors can still see their share and pay you by check; you record it in the ledger.</p>
+        <p className="text-stone">Until it&apos;s connected, neighbors can still see their share and pay you by check, and you record it.</p>
       </div>
     );
   }
@@ -748,7 +769,7 @@ function StepBank({ d, set }: StepProps) {
   return (
     <div className="space-y-6">
       <p className="text-[1.05rem]">
-        Neighbors&apos; payments go straight into an account in the road&apos;s name. Road Fund never holds the money. Stripe handles the account and checks the
+        Neighbors&apos; online payments go to the bank account you connect: the road&apos;s own, or yours if it doesn&apos;t have one. Road Fund never holds the money. Stripe handles the account and checks the
         details; you&apos;ll need the road group&apos;s name, your name as the representative, and the bank account the road uses.
       </p>
       {d.bank.connected ? (
@@ -783,7 +804,7 @@ function StepBank({ d, set }: StepProps) {
         </Card>
       )}
       {emailField}
-      <p className="text-stone">You can skip this. Neighbors can still see their share and pay you by check; you record it in the ledger.</p>
+      <p className="text-stone">You can skip this. Neighbors can still see their share and pay you by check, and you record it.</p>
     </div>
   );
 }
@@ -810,7 +831,7 @@ function StepBudget({ d, set, lengthFt, shares }: StepProps & { lengthFt: number
       set({ budget: [...d.budget, { id: uid("bud"), label: `${res.data.description || res.data.vendor} (last year)`, category: cat, amount: Math.round(res.data.total * 100) }] });
       toast(`Read ${res.data.vendor}: ${money(Math.round(res.data.total * 100))}. Check the line below.`);
     } catch (e) {
-      toast(e instanceof Error && e.message ? e.message : "Couldn't read that invoice. Type the amount instead.", "error");
+      toast(e instanceof Error && e.message ? e.message : "Couldn't read that bill. Type the amount instead.", "error");
     } finally {
       setReading(false);
     }
@@ -849,7 +870,7 @@ function StepBudget({ d, set, lengthFt, shares }: StepProps & { lengthFt: number
         {aiOn && (
           <label className={cx("inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border-2 border-pine/80 bg-white px-3.5 text-[0.9rem] font-semibold text-pine hover:bg-pine-50", reading && "opacity-60")}>
             <Camera className="h-4 w-4" aria-hidden />
-            {reading ? "Reading…" : "Read last year's invoice"}
+            {reading ? "Reading…" : "Fill in from last year's bill"}
             <input type="file" accept="image/*,application/pdf" className="sr-only" disabled={reading} onChange={(e) => e.target.files?.[0] && readInvoice(e.target.files[0])} />
           </label>
         )}
@@ -875,15 +896,16 @@ function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnT
   const sample = final.lines[0];
   const preview =
     d.message ||
-    messageTemplate("dues", {
-      roadName: d.name,
-      captainName: me?.owners || "",
-      recipientName: d.homes[0]?.owners || undefined,
-      amount: sample?.amount,
-      dueDate: d.dueDate,
+    fillTokens(TOKEN_TEMPLATES.dues, {
+      first: firstName(d.homes.find((h) => h.id !== d.meId)?.owners),
+      road: d.name || "your road",
+      captainFull: me?.owners.split(" & ")[0] || "your road captain",
+      verify: verifyLine(me ? { phone: me.phone, address: me.address } : null),
+      amount: sample ? money(sample.amount) : "your share",
+      due: d.dueDate ? fmtDate(d.dueDate) : "soon",
       title: d.title,
-      budgetSummary: budgetSummary(d.budget.map((b) => b.label)),
-      link: "roadfund.app/n/…",
+      budget: budgetSummary(d.budget.map((b) => b.label)) || "plowing and upkeep",
+      link: "(their own link)",
     });
   return (
     <div className="space-y-6">
@@ -919,7 +941,7 @@ function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnT
         </dl>
       </Card>
       {!shares.ok && <Callout tone="danger">{shares.problems.join(" ")}</Callout>}
-      <p className="text-stone">The free Starter plan covers one dues request a year. You can upgrade later from Settings.</p>
+      <p className="text-stone">The free plan covers one bill a year. You can upgrade later from Settings.</p>
     </div>
   );
 }

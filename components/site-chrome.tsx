@@ -10,10 +10,11 @@ import { ButtonLink, cx } from "./ui";
 
 const NAV = [
   { href: "/#how", label: "How it works" },
-  { href: "/calculator", label: "Share calculator" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/closing", label: "For closings" },
-  { href: "/guide", label: "Road law guide" },
+  { href: "/calculator", label: "Calculator" },
+  { href: "/guide", label: "Road law" },
+  { href: "/closing", label: "Selling a home" },
+  { href: "/help", label: "Help" },
 ];
 
 export function SiteHeader() {
@@ -31,13 +32,13 @@ export function SiteHeader() {
         <Link href="/" aria-label="Road Fund home" className="shrink-0">
           <Logo />
         </Link>
-        <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
+        <nav aria-label="Main" className="hidden items-center gap-0.5 xl:flex">
           {NAV.map((n) => (
             <Link
               key={n.href}
               href={n.href}
               className={cx(
-                "rounded-lg px-3 py-2 text-[0.95rem] font-semibold hover:bg-paper-2",
+                "whitespace-nowrap rounded-lg px-3 py-2 text-[1rem] font-semibold hover:bg-paper-2",
                 path === n.href ? "text-pine" : "text-charcoal",
               )}
             >
@@ -45,20 +46,21 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <div className="hidden items-center gap-2 lg:flex">
-          <ButtonLink href="/demo" variant="ghost" size="sm">
-            Try the demo
+        <div className="hidden shrink-0 items-center gap-2 xl:flex">
+          <ButtonLink href="/demo" variant="ghost" size="sm" className="whitespace-nowrap">
+            Sample road
           </ButtonLink>
-          <ButtonLink href="/app" variant="primary" size="sm">
+          <ButtonLink href="/app" variant="primary" size="sm" className="whitespace-nowrap">
             Open my road
           </ButtonLink>
         </div>
-        <button className="rounded-lg p-2 lg:hidden" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="mobile-nav" aria-label="Menu">
+        <button className="flex min-h-11 items-center gap-2 rounded-lg px-2 font-semibold xl:hidden" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="mobile-nav" aria-label="Menu">
           {open ? <X className="h-7 w-7" aria-hidden /> : <Menu className="h-7 w-7" aria-hidden />}
+          <span>Menu</span>
         </button>
       </div>
       {open && (
-        <nav id="mobile-nav" aria-label="Main" className="border-t border-line bg-paper px-4 pb-5 pt-2 lg:hidden">
+        <nav id="mobile-nav" aria-label="Main" className="border-t border-line bg-paper px-4 pb-5 pt-2 xl:hidden">
           <ul className="flex flex-col">
             {NAV.map((n) => (
               <li key={n.href}>
@@ -73,7 +75,7 @@ export function SiteHeader() {
               Set up your road
             </ButtonLink>
             <ButtonLink href="/demo" variant="secondary" block>
-              Try the demo road
+              See a sample road
             </ButtonLink>
             <ButtonLink href="/app" variant="ghost" block>
               Open my road
@@ -93,9 +95,9 @@ export function SiteFooter() {
           <Logo />
           <p className="mt-3 max-w-sm text-stone">Dues, records and closing letters for private roads. Built for the neighbor who keeps the road running.</p>
         </div>
-        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Demo road"], ["/start", "Set up your road"], ["/signin", "Captain sign-in"], ["/help", "Help"]]} />
-        <FooterCol title="Free tools" links={[["/calculator", "Share calculator"], ["/guide", "Road law guide"], ["/verify", "Verify a letter"]]} />
-        <FooterCol title="Closings" links={[["/closing", "Title and lenders"], ["/closing#request", "Request a letter"], ["/legal", "Terms and privacy"]]} />
+        <FooterCol title="Road Fund" links={[["/#how", "How it works"], ["/pricing", "Pricing"], ["/demo", "Sample road"], ["/start", "Set up your road"], ["/signin", "Captain sign-in"], ["/help", "Help"]]} />
+        <FooterCol title="Free tools" links={[["/calculator", "Share calculator"], ["/guide", "Road law guide"], ["/verify", "Check a letter"]]} />
+        <FooterCol title="Partners" links={[["/closing", "Title companies and agents"], ["/closing#request", "Request a letter"], ["/contractors", "Plow and grading contractors"], ["/legal", "Terms and privacy"]]} />
       </div>
       <div className="border-t border-line">
         <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-[0.88rem] text-stone">

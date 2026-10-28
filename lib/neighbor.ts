@@ -2,7 +2,7 @@
 // no other neighbor's payment history unless the road chooses to show names.
 
 import { computeShares, type SplitResult } from "./split.ts";
-import { agreementSigned, accountSummary, captainHome, displayName, homeOpenBills, requestProgress, voteState, type HomeOwed, type VoteState } from "./selectors.ts";
+import { accountSummary, agreementSigned, approvalText, captainHome, checkInMail, displayName, homeOpenBills, requestProgress, type HomeOwed, type VoteState, voteState } from "./selectors.ts";
 import type { Agreement, BudgetLine, Expense, Home, Payment, Road, RoadSettings, SplitSettings, WorkEntry } from "./types.ts";
 
 export interface NeighborView {
@@ -19,13 +19,21 @@ export interface NeighborView {
     plan: Road["plan"];
     /** The demo road: payments there are always simulated. */
     demo: boolean;
-    settings: Pick<RoadSettings, "payerCoversFees" | "defaultPayMethod">;
+    settings: Pick<RoadSettings, "payerCoversFees">;
     split: SplitSettings;
   };
   me: Pick<Home, "id" | "label" | "address" | "owners" | "phone" | "email" | "smsOptIn" | "emailOptIn" | "distanceFt" | "frontageFt" | "vacant">;
-  captain: { name: string; phone: string; email: string } | null;
+  captain: { name: string; phone: string; email: string; address: string } | null;
   balance: { balance: number; pending: number; reserve: number };
-  bills: (HomeOwed & { split: SplitResult; budget: BudgetLine[]; progress: { homesPaid: number; homesBilled: number; collected: number; billed: number; paidNames: string[] | null } })[];
+  bills: (HomeOwed & {
+    split: SplitResult;
+    budget: BudgetLine[];
+    progress: { homesPaid: number; homesBilled: number; collected: number; billed: number; paidNames: string[] | null };
+    /** The neighbor said a check is on its way. */
+    checkMailed: { amount: number; at: string } | null;
+    /** For project bills: the vote that approved the work. */
+    approval: string | null;
+  })[];
   receipts: Payment[];
   spending: Pick<Expense, "id" | "vendorName" | "description" | "category" | "amount" | "paidAt">[];
   work: WorkEntry[];
@@ -57,6 +65,11 @@ export function neighborView(road: Road, homeId: string, now: Date): NeighborVie
       line: { ...b.line, home: me, payments: b.line.payments },
       split,
       budget: b.request.budget,
+      approval: approvalText(road, b.request),
+      checkMailed: (() => {
+        const n = checkInMail(road, homeId, b.request.id, now);
+        return n ? { amount: n.amount, at: n.at } : null;
+      })(),
       progress: {
         homesPaid: prog.homesPaid,
         homesBilled: prog.homesBilled,
@@ -84,7 +97,7 @@ export function neighborView(road: Road, homeId: string, now: Date): NeighborVie
       accountConnected: road.account.status === "connected",
       demo: !!road.demo,
       plan: road.plan,
-      settings: { payerCoversFees: road.settings.payerCoversFees, defaultPayMethod: road.settings.defaultPayMethod },
+      settings: { payerCoversFees: road.settings.payerCoversFees },
       split: road.split,
     },
     me: {
@@ -100,7 +113,7 @@ export function neighborView(road: Road, homeId: string, now: Date): NeighborVie
       frontageFt: me.frontageFt,
       vacant: me.vacant,
     },
-    captain: cap ? { name: displayName(cap), phone: cap.phone, email: cap.email } : null,
+    captain: cap ? { name: displayName(cap), phone: cap.phone, email: cap.email, address: cap.address } : null,
     balance: { balance: acct.balance, pending: acct.pending, reserve: acct.reserve },
     bills,
     receipts: road.payments.filter((p) => p.homeId === homeId && p.status === "ok").sort((a, b) => b.paidAt.localeCompare(a.paidAt)),

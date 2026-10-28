@@ -5,7 +5,7 @@ import { computeShares, type SplitHome } from "./split.ts";
 import { computeCharge } from "./fees.ts";
 import { applyCommand, assertNeighborCommand, buildPayment, CommandError, type Ctx } from "./commands.ts";
 import { buildDemoRoad, DEMO_CAPTAIN_INDEX } from "./seed.ts";
-import { accountSummary, currentRequest, ledger, nextActions, requestProgress, reserveProjection, voteState, contractorTotals } from "./selectors.ts";
+import { accountSummary, currentRequest, ledger, nextActions, requestProgress, voteState } from "./selectors.ts";
 import { createRoad, newHome } from "./factory.ts";
 import { neighborView } from "./neighbor.ts";
 import { buildAgreement, searchAgreement } from "./agreement.ts";
@@ -111,8 +111,6 @@ test("demo road replays cleanly and stays consistent", () => {
   const vs = voteState(road, open, now);
   assert.equal(vs.status, "open");
   assert.equal(vs.needed, 5);
-  const totals = contractorTotals(road, now.getFullYear());
-  assert.ok(totals.some((t) => t.needs1099) || now.getMonth() < 6, "grading contractor crosses $2,000 when the year has enough history");
 });
 
 test("neighbor view hides other neighbors' contact details", () => {
@@ -138,7 +136,7 @@ test("neighbor commands are limited to their own home", () => {
   const req = currentRequest(road)!;
   const p = buildPayment(road, { id: "pay_x", homeId: other, requestId: req.id, amount: 100, method: "ach", payerName: "x", recordedBy: "neighbor", paidAt: now.toISOString() });
   assert.throws(() => assertNeighborCommand(road, mine, { type: "payment.record", payment: p }), CommandError);
-  assert.throws(() => assertNeighborCommand(road, mine, { type: "road.plan", plan: "plus" }), CommandError);
+  assert.throws(() => assertNeighborCommand(road, mine, { type: "road.plan", plan: "roadfund" }), CommandError);
   const ok = { ...p, homeId: mine };
   assert.doesNotThrow(() => assertNeighborCommand(road, mine, { type: "payment.record", payment: ok }));
 });
@@ -163,7 +161,7 @@ test("starter plan allows one dues request per year", () => {
   const ctx: Ctx = { at, actor: { kind: "captain", homeId: h[0].id, name: "A" } };
   const mk = (id: string) => ({ type: "request.create" as const, request: { id, title: "Dues", kind: "annual" as const, createdAt: at, dueDate: at.slice(0, 10), total: 200, budget: [], split: road.split, lines: h.map((x) => ({ homeId: x.id, amount: 100, reason: "" })), message: "", status: "open" as const, sentAt: null } });
   road = applyCommand(road, mk("r1"), ctx);
-  assert.throws(() => applyCommand(road, mk("r2"), ctx), /Starter/);
+  assert.throws(() => applyCommand(road, mk("r2"), ctx), /free plan/);
 });
 
 test("changing agreement terms after signing resets signatures", () => {
@@ -175,18 +173,6 @@ test("changing agreement terms after signing resets signatures", () => {
   assert.equal(road.agreement.signatures.length, 0);
   assert.equal(road.agreement.version, 2);
   assert.equal(road.agreement.step, "draft");
-});
-
-test("reserve projection recommends a contribution that keeps the fund positive", () => {
-  const p = reserveProjection(
-    { setAside: 100_000, yearlyContribution: 0, inflationPct: 0, items: [{ id: "a", name: "Regrade", cost: 300_000, lifeYears: 5, lastDoneYear: 2024 }] },
-    2026,
-    10,
-  );
-  // Due 2029 and 2034 at $3,000 each. By 2034 (year 9): 100,000 + 9C >= 600,000 → C >= 55,556 → $556.
-  assert.equal(p.recommended, 55_600);
-  const check = reserveProjection({ setAside: 100_000, yearlyContribution: p.recommended, inflationPct: 0, items: [{ id: "a", name: "Regrade", cost: 300_000, lifeYears: 5, lastDoneYear: 2024 }] }, 2026, 10);
-  assert.ok(check.lowest >= 0);
 });
 
 test("agreement draft fills from road data and answers questions", () => {
@@ -237,12 +223,45 @@ test("captain index points at the captain", () => {
   assert.equal(road.captainHomeId, road.homes[DEMO_CAPTAIN_INDEX].id);
 });
 
-import { parseSnow } from "./weather.ts";
+test("old saved roads load in the current shape", async () => {
+  const { normalizeRoad } = await import("./migrate.ts");
+  const old = { ...buildDemoRoad(new Date()), plan: "plus", bids: [{ id: "bid_1" }], settings: { ...buildDemoRoad(new Date()).settings, weather: { enabled: true } }, reserve: { setAside: 5000, items: [] } } as unknown as Parameters<typeof normalizeRoad>[0];
+  const r = normalizeRoad(old) as unknown as Record<string, unknown>;
+  assert.equal(r.plan, "roadfund");
+  assert.equal("bids" in r, false);
+  assert.equal("weather" in (r.settings as object), false);
+  assert.deepEqual(r.reserve, { setAside: 5000 });
+});
 
-test("parses National Weather Service snow wording", () => {
-  assert.deepEqual(parseSnow("Snow likely. New snow accumulation of 2 to 4 inches possible."), [2, 4]);
-  assert.deepEqual(parseSnow("Snow showers. New snow accumulation of around an inch possible."), [0.5, 1]);
-  assert.deepEqual(parseSnow("Chance of snow. New snow accumulation of less than half an inch possible."), [0, 0.5]);
-  assert.deepEqual(parseSnow("Snow. New snow accumulation of 5 to 9 inches possible."), [5, 9]);
-  assert.equal(parseSnow("Mostly sunny, with a high near 41."), null);
+test("a project bill needs a passed vote and links back to it", () => {
+  const now = new Date();
+  let road = buildDemoRoad(now);
+  const open = road.votes.find((v) => !v.closedAt)!;
+  const ctx: Ctx = { at: now.toISOString(), actor: { kind: "captain", homeId: road.captainHomeId, name: "Captain" } };
+  const bill = (voteId: string) => ({
+    type: "request.create" as const,
+    request: { id: `req_${voteId}`, title: "Culvert", kind: "special" as const, createdAt: now.toISOString(), dueDate: now.toISOString().slice(0, 10), total: 900, budget: [], split: road.split, lines: road.homes.map((h) => ({ homeId: h.id, amount: 100, reason: "" })), message: "", status: "open" as const, sentAt: null, voteId },
+  });
+  assert.throws(() => applyCommand(road, bill(open.id), ctx), /after the vote passes/);
+  const passed = road.votes.find((v) => v.outcome === "passed")!;
+  road = applyCommand(road, bill(passed.id), ctx);
+  assert.equal(road.votes.find((v) => v.id === passed.id)!.requestId, `req_${passed.id}`);
+});
+
+test("a check in the mail stops reminders until the check is recorded", async () => {
+  const { checkInMail } = await import("./selectors.ts");
+  const { prepareNeighborCommand } = await import("./neighbor-actions.ts");
+  const now = new Date();
+  let road = buildDemoRoad(now);
+  const req = currentRequest(road)!;
+  const line = requestProgress(road, req, now).lines.find((l) => l.outstanding > 0 && !l.plan)!;
+  const at = now.toISOString();
+  const cmd = prepareNeighborCommand(road, line.home.id, { type: "check.mailed", note: { id: "chk_1", homeId: line.home.id, requestId: req.id, amount: 1, at: "2000-01-01T00:00:00Z" } }, at);
+  road = applyCommand(road, cmd, { at, actor: { kind: "neighbor", homeId: line.home.id, name: "N" } });
+  const note = checkInMail(road, line.home.id, req.id, now)!;
+  assert.equal(note.amount, line.outstanding, "the server sets the amount");
+  assert.equal(note.at, at, "and the time");
+  const pay = buildPayment(road, { id: "pay_chk", homeId: line.home.id, requestId: req.id, amount: line.outstanding, method: "check", payerName: "N", recordedBy: "captain", paidAt: at });
+  road = applyCommand(road, { type: "payment.record", payment: pay }, { at, actor: { kind: "captain", homeId: road.captainHomeId, name: "C" } });
+  assert.equal(checkInMail(road, line.home.id, req.id, now), null);
 });

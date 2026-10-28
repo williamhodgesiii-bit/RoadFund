@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Search } from "lucide-react";
 import { confirmLetterPayment, lookupRoad, requestLetter, type RoadLookup } from "@/lib/client/backend";
+import { money } from "@/lib/money";
+import { LETTER_FEE } from "@/lib/pricing";
 import { stateName } from "@/lib/states";
 import type { Requester } from "@/lib/types";
 import { Button, Callout, Field, Input, Select, Textarea } from "./ui";
+
+const fee = money(LETTER_FEE).replace(".00", "");
 
 export function LetterRequestForm() {
   const [code, setCode] = useState("");
@@ -76,7 +80,7 @@ export function LetterRequestForm() {
     return (
       <Callout tone="ok" title="Paid. Your request is with the road captain.">
         <p>
-          {paidFor.roadName} has your request and your $75 payment. {paidFor.email ? `We'll email the letter to ${paidFor.email} when it's issued. ` : ""}If the road can&apos;t
+          {paidFor.roadName} has your request and your {fee} payment. {paidFor.email ? `We'll email the letter to ${paidFor.email} when it's issued. ` : ""}If the road can&apos;t
           issue it, the fee is refunded in full.
         </p>
       </Callout>
@@ -166,12 +170,12 @@ export function LetterRequestForm() {
           </Field>
           {error && <Callout tone="danger">{error}</Callout>}
           <Button type="submit" loading={sending} block>
-            {road.payFirst ? "Pay $75 and send the request" : "Request the letter"}
+            {road.payFirst ? `Pay ${fee} and send the request` : "Request the letter"}
           </Button>
           <p className="text-[0.9rem] text-stone">
             {road.payFirst
-              ? "You pay the $75 fee by card on Stripe's secure page. It's refunded in full if the road can't issue the letter. Most title companies pass it through to the seller at closing."
-              : "The $75 letter fee is usually paid by the seller or through closing."}
+              ? `You pay the ${fee} fee by card on Stripe's secure page. It includes one free update within 30 days, and it's refunded in full if the road can't issue the letter. Most title companies pass it to the seller at closing.`
+              : `The ${fee} letter fee is usually passed to the seller at closing. It includes one free update within 30 days.`}
           </p>
         </form>
       )}

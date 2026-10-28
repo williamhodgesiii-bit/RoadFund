@@ -111,7 +111,7 @@ export default function NeighborsPage() {
       <Card className="mt-6 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-bold">Handing off the captain role?</p>
-          <p className="text-stone">The ledger, documents and history stay with the road.</p>
+          <p className="text-stone">The payment record, documents and history stay with the road.</p>
         </div>
         <Button variant="secondary" icon={<UserPlus className="h-5 w-5" aria-hidden />} onClick={() => setHandoff(true)}>
           Hand off

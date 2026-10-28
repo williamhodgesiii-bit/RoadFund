@@ -27,7 +27,7 @@ export default function BillsPage() {
     <>
       <PageHeader
         title="Money"
-        sub="Upload the invoice, approve it, pay the contractor from the road account."
+        sub="Add the contractor's bill, approve it, then pay it from road money."
         actions={
           <Button onClick={() => setAdding(true)} icon={<Plus className="h-5 w-5" aria-hidden />}>
             Add a bill
@@ -121,7 +121,7 @@ export default function BillsPage() {
                 <Check className="h-6 w-6 text-stone" aria-hidden />
                 <span>
                   <span className="block font-bold">I paid it by check from the road&apos;s bank</span>
-                  <span className="block text-[0.9rem] text-stone">Records it in the ledger.</span>
+                  <span className="block text-[0.9rem] text-stone">Records it in the payment record.</span>
                 </span>
               </button>
               <button
@@ -133,7 +133,7 @@ export default function BillsPage() {
                 <Check className="h-6 w-6 text-stone" aria-hidden />
                 <span>
                   <span className="block font-bold">I paid it myself and the road paid me back</span>
-                  <span className="block text-[0.9rem] text-stone">Records it as a reimbursement so the ledger stays complete.</span>
+                  <span className="block text-[0.9rem] text-stone">Records it as paying you back, so the record stays complete.</span>
                 </span>
               </button>
             </div>
@@ -145,7 +145,6 @@ export default function BillsPage() {
 }
 
 function BillList({ title, sub, bills, empty, render }: { title: string; sub?: string; bills: Expense[]; empty: string; render: (e: Expense) => React.ReactNode }) {
-  const { road } = useRoad();
   return (
     <Card>
       <CardHeader title={`${title}${bills.length ? ` (${bills.length})` : ""}`} sub={sub} />
@@ -154,7 +153,6 @@ function BillList({ title, sub, bills, empty, render }: { title: string; sub?: s
       ) : (
         <ul className="divide-y divide-line">
           {bills.map((e) => {
-            const c = road.contractors.find((x) => x.id === e.contractorId);
             return (
               <li key={e.id} id={e.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
                 {e.invoiceFileId && <FileThumb fileId={e.invoiceFileId} alt={`Invoice from ${e.vendorName}`} className="h-16 w-16 shrink-0 rounded-lg" />}
@@ -164,7 +162,6 @@ function BillList({ title, sub, bills, empty, render }: { title: string; sub?: s
                   </p>
                   <p className="text-[0.92rem] text-stone">
                     {e.description} · {CATEGORY_LABEL[e.category]} · invoice {fmtDate(e.invoiceDate)}
-                    {c && !c.w9OnFile && !c.isCorporation && " · no W-9 on file"}
                   </p>
                 </div>
                 <div className="shrink-0">{render(e)}</div>

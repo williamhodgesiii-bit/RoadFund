@@ -1,52 +1,39 @@
-// Message templates. Short enough for a text, plain enough for anyone, and
-// they name the amount, the date and the link every time.
-// Templates use {tokens} so one edited (or AI-rewritten) template can be
-// filled in per neighbor.
+// Messages to neighbors. People are warned not to tap links in unexpected
+// texts, so every message says who it's from (the captain by full name, and
+// the road), states the amount, what it's for and the date, and gives a way to
+// check without the link. No exclamation marks, no urgency, no legal threats
+// in a text: late notices go out as dated letters instead (noticeLetter).
+// Templates use {tokens} so one edited template fills in per neighbor.
 
 import { fmtDate } from "./dates.ts";
 import { money } from "./money.ts";
-import type { NoticeKind } from "./types.ts";
+import type { Home, Road } from "./types.ts";
 
 export const SMS_FOOTER = "Reply STOP to stop texts.";
 
-export type TemplateKind = "intro" | "dues" | "reminder" | "vote" | "sign" | NoticeKind;
+export type TemplateKind = "intro" | "dues" | "reminder" | "vote" | "sign" | "friendly" | "letterSent";
 
 export const TOKEN_TEMPLATES: Record<TemplateKind, string> = {
-  intro: "Hi {first}, {road} now keeps road dues, bills and votes on Road Fund. This is your page: what you owe and why, where the money goes, and any open votes. No app or password: {link} – {captain}",
-  dues: "Hi {first}, {title} for {road} are ready. Your share is {amount}, due {due}. It covers {budget}. See why and pay by bank or card: {link} – {captain}",
-  reminder: "Hi {first}, a reminder that your {road} share of {amount} is due {due}. Pay here: {link} Thanks! – {captain}",
-  vote: "Hi {first}, please vote by {deadline}: {question} Tap to vote: {link} – {captain}",
-  sign: "Hi {first}, the {road} maintenance agreement is ready to sign. Read the plain-English summary and sign here: {link} – {captain}",
-  friendly: "Hi {first}, your {road} share of {amount} was due {due} and hasn't come through yet. If it slipped by, you can pay here: {link} If something's going on, reply and we'll work out a plan. – {captain}",
-  formal: "Hi {first}, our records show {amount} unpaid for {title}, due {due}. Please pay within 14 days: {link} Under our road agreement a late fee of {lateFee} applies after {graceDays} days. If you think this is wrong, reply with your receipt. – {captain}",
-  final: "Hi {first}, this is a final notice. {amount} for {title} has been unpaid since {due}. If it isn't paid or a payment plan set up within 10 days, the road will file in small claims court to collect it, plus fees allowed by our agreement. Pay here: {link} – {captain}",
+  intro:
+    "Hi {first}, this is {captainFull} on {road}. The road now keeps its bills, payments and votes on Road Fund, so everyone sees the same numbers. Your page shows what you owe and why: {link} {verify}",
+  dues: "Hi {first}, this is {captainFull} on {road}. Your share of {title} is {amount}, due {due}. It pays for {budget}. See how it was split and pay here: {link} {verify}",
+  reminder: "Hi {first}, this is {captainFull} on {road}. A reminder that your share of {title}, {amount}, is due {due}. Your page: {link} If you already paid or mailed a check, please ignore this.",
+  vote: "Hi {first}, this is {captainFull} on {road}. Please vote by {deadline} on this question: {question} Vote here: {link} {verify}",
+  sign: "Hi {first}, this is {captainFull} on {road}. The road agreement is ready to sign. It says who pays for what and how we decide on work. Read the short summary and sign here: {link} {verify}",
+  friendly:
+    "Hi {first}, this is {captainFull} on {road}. Our records show {amount} still open for {title}, which was due {due}. If it slipped by, your page has the details: {link} If money is tight, call me and we can set up a payment plan. {verify}",
+  letterSent: "Hi {first}, this is {captainFull} on {road}. I mailed you a letter about your share of {title}. Please look for it. {verify}",
 };
 
 export const TEMPLATE_SUBJECT: Record<TemplateKind, string> = {
-  intro: "Your page for {road}",
-  dues: "{title} for {road}: your share is {amount}",
-  reminder: "Reminder: {road} dues due {due}",
-  vote: "Vote by {deadline}: {question}",
-  sign: "{road} maintenance agreement ready to sign",
-  friendly: "Your {road} share is past due",
-  formal: "Notice of unpaid road dues: {road}",
-  final: "Final notice of unpaid road dues: {road}",
+  intro: "{road} is now using Road Fund",
+  dues: "{road}: your share of {title} is {amount}",
+  reminder: "{road}: {amount} due {due}",
+  vote: "{road}: please vote by {deadline}",
+  sign: "{road}: the road agreement is ready to sign",
+  friendly: "{road}: your share is still open",
+  letterSent: "{road}: I mailed you a letter",
 };
-
-export interface MessageContext {
-  roadName: string;
-  captainName: string;
-  recipientName?: string;
-  amount?: number;
-  dueDate?: string;
-  link?: string;
-  title?: string;
-  budgetSummary?: string;
-  question?: string;
-  deadline?: string;
-  lateFee?: number;
-  graceDays?: number;
-}
 
 export function firstName(name?: string): string {
   if (!name) return "neighbor";
@@ -54,29 +41,32 @@ export function firstName(name?: string): string {
   return n || "neighbor";
 }
 
-export function tokenValues(c: MessageContext): Record<string, string> {
+/** "Not sure? Call me at (231) 555-0113, or leave a check at 215 Birch Hollow Ln." */
+export function verifyLine(captain: Pick<Home, "phone" | "address"> | null): string {
+  const phone = captain?.phone.trim();
+  const address = captain?.address.trim();
+  if (phone && address) return `Not sure about this? Call me at ${phone}, or leave a check at ${address}.`;
+  if (phone) return `Not sure about this? Call me at ${phone}.`;
+  if (address) return `Not sure about this? You can leave a check at ${address} instead.`;
+  return "Not sure about this? Ask me before you pay.";
+}
+
+/** The values every message to this home can use. `link` is the neighbor's own page. */
+export function baseValues(road: Road, home: Home, link: string): Record<string, string> {
+  const cap = road.homes.find((h) => h.id === road.captainHomeId) ?? null;
+  const capName = cap ? (cap.owners.split(" & ")[0] || cap.label).trim() : "your road captain";
   return {
-    first: firstName(c.recipientName),
-    road: c.roadName,
-    captain: firstName(c.captainName),
-    amount: c.amount !== undefined ? money(c.amount) : "your share",
-    due: c.dueDate ? fmtDate(c.dueDate) : "soon",
-    link: c.link ?? "[your link]",
-    title: c.title ?? "road dues",
-    budget: c.budgetSummary || "plowing and upkeep",
-    question: c.question ?? "",
-    deadline: c.deadline ? fmtDate(c.deadline) : "the deadline",
-    lateFee: c.lateFee !== undefined ? money(c.lateFee) : "$25.00",
-    graceDays: String(c.graceDays ?? 30),
+    first: firstName(home.owners || home.label),
+    road: road.name,
+    captain: firstName(capName),
+    captainFull: capName,
+    verify: verifyLine(cap),
+    link,
   };
 }
 
 export function fillTokens(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
-}
-
-export function messageTemplate(kind: TemplateKind, c: MessageContext): string {
-  return fillTokens(TOKEN_TEMPLATES[kind], tokenValues(c));
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m).replace(/\s{2,}/g, " ").trim();
 }
 
 export function budgetSummary(labels: string[]): string {
@@ -88,4 +78,65 @@ export function budgetSummary(labels: string[]): string {
 export function smsLength(text: string): { chars: number; segments: number } {
   const chars = text.length;
   return { chars, segments: chars <= 160 ? 1 : Math.ceil(chars / 153) };
+}
+
+// ---------- Late notices: dated letters, mailed or emailed ----------
+
+export interface NoticeInput {
+  kind: "formal" | "final";
+  date: Date;
+  road: Road;
+  home: Home;
+  amount: number;
+  title: string;
+  dueDate: string;
+  link: string;
+  /** Date an earlier formal notice went out, for the final notice. */
+  formalSentOn?: string | null;
+}
+
+/** Plain, dated letter text. The captain prints and mails it (certified mail for the final one). */
+export function noticeLetter(n: NoticeInput): { subject: string; body: string } {
+  const { road, home } = n;
+  const cap = road.homes.find((h) => h.id === road.captainHomeId) ?? null;
+  const capName = cap ? cap.owners.split(" & ")[0] || cap.label : "The road captain";
+  const a = road.agreement;
+  const inForce = a.step === "recorded" || (a.step !== "draft" && a.signatures.filter((s) => s.version === a.version).length === road.homes.length);
+  const agreementLine = inForce
+    ? `Under our road maintenance agreement, a late fee of ${money(a.terms.lateFee)} applies after ${a.terms.graceDays} days.`
+    : "";
+  const pay = `You can pay online at ${n.link}${cap?.address ? `, or by check, mailed or dropped off at ${cap.address}` : ", or by check given to me"}.`;
+  const call = cap?.phone ? `If you think this is a mistake, or you need to pay over time, please call me at ${cap.phone}. We can set up a payment plan.` : "If you think this is a mistake, or you need to pay over time, please let me know. We can set up a payment plan.";
+  const dated = n.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const to = `${home.owners || home.label}\n${home.address || home.label}`;
+  const sign = `Sincerely,\n\n${capName}\nRoad captain, ${road.name}`;
+
+  if (n.kind === "formal") {
+    return {
+      subject: `Letter about unpaid road dues: ${road.name}`,
+      body: [
+        dated,
+        to,
+        `Dear ${home.owners || "neighbor"},`,
+        `Our road records show ${money(n.amount)} unpaid for ${n.title}, which was due ${fmtDate(n.dueDate)}.`,
+        `Every home on ${road.name} shares the cost of keeping the road open and safe. ${agreementLine}`.trim(),
+        `Please pay within 14 days of the date of this letter. ${pay}`,
+        call,
+        sign,
+      ].join("\n\n"),
+    };
+  }
+  return {
+    subject: `Final letter about unpaid road dues: ${road.name}`,
+    body: [
+      dated,
+      to,
+      `Dear ${home.owners || "neighbor"},`,
+      `This is a final letter about ${money(n.amount)} unpaid for ${n.title}, which was due ${fmtDate(n.dueDate)}.${n.formalSentOn ? ` I wrote to you about it on ${fmtDate(n.formalSentOn)}.` : ""}`,
+      `If it isn't paid, or a payment plan isn't set up, within 10 days of the date of this letter, the road may file a claim in small claims court to collect it${inForce ? ", plus the costs our road agreement allows" : ""}. I would much rather settle it between neighbors.`,
+      pay,
+      call,
+      sign,
+    ].join("\n\n"),
+  };
 }

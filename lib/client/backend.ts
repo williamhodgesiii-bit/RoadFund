@@ -7,6 +7,7 @@
 import { applyAll, CommandError, type Command, type Ctx } from "../commands";
 import { normalizeCode, uid } from "../ids";
 import { publicLetter, type PublicLetter } from "../letter";
+import { normalizeRoad } from "../migrate";
 import { neighborView, type NeighborView } from "../neighbor";
 import { prepareNeighborCommand } from "../neighbor-actions";
 import { captainHome, displayName } from "../selectors";
@@ -66,7 +67,7 @@ const roadKey = (id: string) => `rf:road:${id}`;
 export function readLocalRoad(id: string): Road | null {
   try {
     const raw = localStorage.getItem(roadKey(id));
-    return raw ? (JSON.parse(raw) as Road) : null;
+    return raw ? normalizeRoad(JSON.parse(raw) as Road) : null;
   } catch {
     return null;
   }
@@ -175,7 +176,7 @@ export interface RoadLookup {
   state: string;
   homes: { id: string; label: string; address: string }[];
   where: "local" | "cloud";
-  /** The $75 fee is paid by card before the request goes to the captain. */
+  /** The letter fee is paid by card before the request goes to the captain. */
   payFirst?: boolean;
 }
 
@@ -272,8 +273,7 @@ export async function confirmLetterPayment(sessionId: string): Promise<{ ok: boo
 // ---------- Stripe (captain) ----------
 
 export type StripeAction =
-  | { action: "connect" | "refresh" | "dashboard" | "agreement" | "portal" }
-  | { action: "plan"; plan: "roadfund" | "plus" }
+  | { action: "connect" | "refresh" | "dashboard" | "agreement" | "portal" | "plan" }
   | { action: "confirm"; sessionId: string };
 
 export async function stripeAction(entry: RoadEntry, body: StripeAction): Promise<{ url?: string; road?: Road; due?: number; paid?: boolean }> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { Button, Callout, Dialog, Field, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { ai } from "@/lib/client/backend";
@@ -15,7 +15,7 @@ import { uid } from "@/lib/ids";
 import { allocate, centsToInput, money, parseMoney } from "@/lib/money";
 import { displayName } from "@/lib/selectors";
 import type { DuesRequest, Expense, ExpenseCategory, Home, Payment } from "@/lib/types";
-import { AiBadge, useAiOn } from "./common";
+import { useAiOn } from "./common";
 
 export function RecordPaymentDialog({ open, onClose, home, request, outstanding }: { open: boolean; onClose: () => void; home: Home; request: DuesRequest; outstanding: number }) {
   const { road, dispatch } = useRoad();
@@ -168,7 +168,7 @@ export function ReceiptDialog({ payment, onClose }: { payment: Payment | null; o
           ["Road received", money(payment.roadNet)],
           ["Method", `${how}${payment.note ? ` · ${payment.note}` : ""}`],
           ["Date", fmtDateTime(payment.paidAt)],
-          ["Status", payment.status === "void" ? `Voided: ${payment.voidReason}` : new Date(payment.clearsAt) > new Date() ? `Clearing until ${fmtDate(payment.clearsAt)}` : "Cleared"],
+          ["Status", payment.status === "void" ? `Voided: ${payment.voidReason}` : new Date(payment.clearsAt) > new Date() ? `On its way, done by ${fmtDate(payment.clearsAt)}` : "Cleared"],
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between gap-4 px-4 py-2.5">
             <dt className="text-stone">{k}</dt>
@@ -230,7 +230,7 @@ export function AddBillDialog({ open, onClose, preset }: { open: boolean; onClos
           if (res.data.total) setAmount(String(res.data.total));
           if (/^\d{4}-\d{2}-\d{2}$/.test(res.data.date)) setDate(res.data.date);
           if (res.data.category in CATEGORY_LABEL) setCategory(res.data.category as ExpenseCategory);
-          toast("Read the invoice. Check the details before saving.");
+          toast("Filled in from the bill. Check the details before saving.");
         } else if (res.error) toast(res.error, "error");
       }
     } catch (e) {
@@ -282,16 +282,16 @@ export function AddBillDialog({ open, onClose, preset }: { open: boolean; onClos
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border-2 border-dashed border-field bg-paper px-4 py-4">
           <span>
             <span className="flex items-center gap-2 font-semibold">
-              {fileId ? "Invoice attached" : "Snap or upload the invoice"} {aiOn && <AiBadge />}
+              {fileId ? "Bill attached" : "Take a photo of the bill"}
             </span>
-            <span className="block text-[0.9rem] text-stone">{aiOn ? "The details fill in from the photo. You check them." : "Kept with the bill as the receipt."}</span>
+            <span className="block text-[0.9rem] text-stone">{aiOn ? "The amount and date fill in from the photo. You check them." : "Kept with the bill as the receipt."}</span>
           </span>
           <span className="rounded-lg bg-white px-3 py-2 font-semibold text-pine shadow-card">{reading ? "Reading…" : fileId ? "Replace" : "Choose"}</span>
           <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} disabled={reading} />
         </label>
         {reading && aiOn && (
           <p className="flex items-center gap-2 text-[0.92rem] text-lake">
-            <Sparkles className="h-4 w-4" aria-hidden /> Reading the invoice…
+            <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> Reading the bill…
           </p>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -322,7 +322,7 @@ export function AddBillDialog({ open, onClose, preset }: { open: boolean; onClos
               ))}
             </Select>
           </Field>
-          <Field label="Invoice date" htmlFor="bill-date">
+          <Field label="Date on the bill" htmlFor="bill-date">
             <Input id="bill-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
         </div>

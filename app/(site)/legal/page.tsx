@@ -15,21 +15,26 @@ export default function LegalPage() {
         paid advertising at a flat fee and never a per-case referral fee.
       </Section>
       <Section title="Who holds the money">
-        Each road gets its own payment account through Stripe Connect and neighbors&apos; payments go straight to it. Road Fund never holds a road&apos;s money.
-        Road Fund keeps a $1 fee per online payment; card and bank processing fees go to Stripe. Refunds and disputes follow Stripe&apos;s rules and the road&apos;s
-        own decision.
+        Each road connects a bank account through Stripe, and neighbors&apos; online payments go to it. That&apos;s the road&apos;s own account if it has one, or the
+        captain&apos;s if it doesn&apos;t, which is common for informal roads. Road Fund never holds a road&apos;s money. Road Fund keeps $1 per online payment; the bank or
+        card charge goes to Stripe. Checks and cash are free. Refunds and disputes follow Stripe&apos;s rules and the road&apos;s own decision.
       </Section>
       <Section title="Texts">
-        Neighbors only get texts after they agree to them. Every text says how to stop: reply STOP. Opting out takes effect right away and is recorded on the road.
+        Neighbors only get texts from Road Fund after they agree to them on their own page, and they get a confirmation text when they do. Every text says how to stop:
+        reply STOP. Opting out takes effect right away. Messages the captain sends from their own phone are between the captain and the neighbor.
       </Section>
       <Section title="Your data">
         We collect only what running the road needs: names, addresses on the road, contact details neighbors give, payments and records. We never sell it. Neighbors
         see their own details, the road&apos;s totals and spending, but not other neighbors&apos; contact information. A captain can download everything as a file or
         delete the road at any time from Settings.
       </Section>
-      <Section title="Where data lives in this deployment">
-        Without cloud storage turned on, everything stays in the browser that created the road. With cloud storage on, road records are stored in the deployment&apos;s
-        Upstash Redis database and shared links work on any device.
+      <Section title="Where the records are kept">
+        Road records are stored in Road Fund&apos;s database so links work on any phone. Payment details are handled by Stripe; Road Fund never sees card numbers or
+        bank logins. On a site without cloud storage turned on, records stay in the browser that created the road.
+      </Section>
+      <Section title="Road Status Letters">
+        A letter shows what the road&apos;s records say on the day it&apos;s issued. The road captain reviews it before it goes out. It isn&apos;t a title search, a survey
+        or legal advice. The fee is paid by whoever requests it and is refunded if the road can&apos;t issue it.
       </Section>
     </div>
   );

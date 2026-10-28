@@ -7,7 +7,8 @@ import { addDays, isoDate, yearOf } from "./dates.ts";
 import { createRoad, newHome } from "./factory.ts";
 import { pathLengthFt, pointAlong } from "./geo.ts";
 import { uid } from "./ids.ts";
-import { buildSnapshot, LETTER_FEE } from "./letter.ts";
+import { buildSnapshot } from "./letter.ts";
+import { LETTER_FEE } from "./pricing.ts";
 import { computeShares } from "./split.ts";
 import type { BudgetLine, Contractor, DuesRequest, Expense, Home, LatLng, Road, Vote, WorkEntry } from "./types.ts";
 import { letterCode } from "./ids.ts";
@@ -70,22 +71,20 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     { name: "Birch Hollow Lane", state: "MI", county: "Leelanau", town: "Cedar", surface: "gravel", lengthFt, homes, captainHomeId: captainId },
     at(410),
   );
-  road = { ...road, demo: true, path: PATH, center: { lat: 44.8555, lng: -85.7913 }, activity: [] };
+  road = { ...road, demo: true, path: PATH, center: { lat: 44.8555, lng: -85.7913 }, easementRef: "Liber 412, Page 88", allWeather: true, activity: [] };
 
   const contractors: Contractor[] = [
-    { id: uid("ctr"), name: "Kowalski Plowing", trade: "Snow plowing", phone: "(231) 555-0188", email: "kowalskiplow@example.com", w9OnFile: false, isCorporation: false, notes: "Plows after 3 inches. Sands the hill on request." },
-    { id: uid("ctr"), name: "Northern Grade & Gravel LLC", trade: "Grading, gravel, excavation", phone: "(231) 555-0190", email: "office@northerngrade.example", w9OnFile: true, isCorporation: false, notes: "" },
-    { id: uid("ctr"), name: "Benzie Excavating", trade: "Excavation, culverts", phone: "(231) 555-0191", email: "bids@benzieexc.example", w9OnFile: false, isCorporation: false, notes: "" },
-    { id: uid("ctr"), name: "Hilltop Dirtworks", trade: "Excavation", phone: "(231) 555-0192", email: "hilltop@example.com", w9OnFile: false, isCorporation: false, notes: "" },
-    { id: uid("ctr"), name: "Cedar Mutual Insurance", trade: "Road liability insurance", phone: "(231) 555-0193", email: "service@cedarmutual.example", w9OnFile: true, isCorporation: true, notes: "" },
+    { id: uid("ctr"), name: "Kowalski Plowing", trade: "Snow plowing", phone: "(231) 555-0188", email: "kowalskiplow@example.com", notes: "Plows after 3 inches. Sands the hill on request." },
+    { id: uid("ctr"), name: "Northern Grade & Gravel LLC", trade: "Grading, gravel, culverts", phone: "(231) 555-0190", email: "office@northerngrade.example", notes: "" },
+    { id: uid("ctr"), name: "Cedar Mutual Insurance", trade: "Road liability insurance", phone: "(231) 555-0193", email: "service@cedarmutual.example", notes: "" },
   ];
-  const [plow, grade, benzie, hilltop, insurer] = contractors.map((c) => c.id);
+  const [plow, grade, insurer] = contractors.map((c) => c.id);
 
   const steps: { daysAgo: number; who: "captain" | number; cmd: Command }[] = [];
   const cap = (daysAgo: number, cmd: Command) => steps.push({ daysAgo, who: "captain", cmd });
   const nb = (daysAgo: number, i: number, cmd: Command) => steps.push({ daysAgo, who: i, cmd });
 
-  cap(405, { type: "road.plan", plan: "plus" });
+  cap(405, { type: "road.plan", plan: "roadfund" });
   cap(405, { type: "account.connect", bankName: "Test Bank", last4: "6789" });
   cap(405, { type: "account.opening", amount: 340_000, date: day(405) });
   cap(405, { type: "road.split", split: { method: "segment", vacantWeight: 0.5, basePct: 50 } });
@@ -156,8 +155,6 @@ export function buildDemoRoad(now: Date = new Date()): Road {
       contractorId: null,
       cost: null,
       photos: [],
-      position: null,
-      severity: null,
       status: null,
       createdAt: at(daysAgo),
       ...entry,
@@ -167,10 +164,10 @@ export function buildDemoRoad(now: Date = new Date()): Road {
   work(160, { title: "Road graded", description: "Full length graded, crown reshaped so water runs to the ditches. Soft spot at Lot 5 filled.", contractorId: grade, cost: 60_000 });
   work(151, { title: "Gravel top-up", description: "24 tons of 22A gravel spread on the hill and the bend.", contractorId: grade, cost: 48_000 });
   work(121, { title: "Ditches cleaned", description: "East and west ditches cleaned for the first 900 ft. Culvert inlet at Lot 2 cleared.", contractorId: grade, cost: 38_000 });
-  work(62, { kind: "damage", title: "Washout at the bend", description: "Heavy rain overtopped the east ditch. About 30 ft of road edge washed out, one lane passable.", severity: "severe", status: "fixed", position: pointAlong(PATH, 1300) });
+  work(62, { kind: "damage", title: "Washout at the bend", description: "Heavy rain overtopped the east ditch. About 30 ft of road edge washed out, one lane passable.", status: "fixed" });
   work(59, { title: "Washout repaired", description: "Rebuilt the road edge with crushed stone and riprap; ditch reshaped.", contractorId: grade, cost: 65_000 });
-  work(21, { kind: "damage", title: "Creek culvert rusting through", description: "Bottom of the 18-inch culvert at the creek crossing is rusted through. Water is running under the pipe.", severity: "severe", status: "scheduled", position: pointAlong(PATH, 1560) });
-  work(8, { kind: "damage", title: "Potholes near Lot 7 driveway", description: "Cluster of 5 potholes, the largest about 2 ft across and 4 in deep.", severity: "moderate", status: "open", position: pointAlong(PATH, 1650) });
+  work(21, { kind: "damage", title: "Creek culvert rusting through", description: "Bottom of the 18-inch culvert at the creek crossing is rusted through. Water is running under the pipe.", status: "scheduled" });
+  work(8, { kind: "damage", title: "Potholes near Lot 7 driveway", description: "Cluster of 5 potholes, the largest about 2 ft across and 4 in deep.", status: "open" });
 
   // Last year's plow contract vote
   const plowVote: Vote = {
@@ -185,7 +182,6 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     ballots: [],
     closedAt: null,
     outcome: null,
-    bidId: null,
   };
   cap(52, { type: "vote.create", vote: plowVote });
   [0, 1, 2, 3, 4, 6, 8].forEach((i, k) => nb(51 - k, i, { type: "vote.cast", voteId: plowVote.id, ballot: { homeId: H(i), choice: "yes", at: at(51 - k), via: "link" } }));
@@ -200,7 +196,8 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     { id: uid("bud"), label: "Savings for big repairs", category: "reserve", amount: 35_000 },
   ];
   cap(26, { type: "road.budget", budget });
-  const req = makeRequest(homes, `${yearOf(at(24))} road dues`, budget, at(24), addDays(isoDate(now), 6));
+  // The plow contract in this budget was approved by vote, so the bill carries that record.
+  const req = { ...makeRequest(homes, `${yearOf(at(24))} road dues`, budget, at(24), addDays(isoDate(now), 6)), voteId: plowVote.id };
   cap(24, { type: "request.create", request: req });
   cap(24, {
     type: "request.sent",
@@ -235,23 +232,12 @@ export function buildDemoRoad(now: Date = new Date()): Road {
   });
   pay(12, 8, "card", firstHalf);
 
-  // Culvert bids, then a vote on the winning bid
-  const bidId = uid("bid");
-  cap(20, {
-    type: "bid.save",
-    bid: { id: bidId, title: "Replace the creek culvert", scope: "Remove the failed 18-inch culvert at the creek crossing. Install new 18-inch corrugated HDPE pipe, 30 ft, with stone at both ends. Restore road surface.", createdAt: at(20), replyBy: day(9), contractorIds: [grade, benzie, hilltop], quotes: [], status: "open", awardedQuoteId: null, voteId: null },
-  });
-  const q1 = { id: uid("quo"), contractorId: grade, vendorName: "Northern Grade & Gravel LLC", amount: 110_000, startBy: addDays(isoDate(now), 21), scope: "18-in HDPE, 30 ft, stone ends, surface restored", warranty: "2 years", receivedAt: at(15) };
-  const q2 = { id: uid("quo"), contractorId: benzie, vendorName: "Benzie Excavating", amount: 138_000, startBy: addDays(isoDate(now), 35), scope: "18-in HDPE, 30 ft, fieldstone headwalls both ends", warranty: "1 year", receivedAt: at(13) };
-  const q3 = { id: uid("quo"), contractorId: hilltop, vendorName: "Hilltop Dirtworks", amount: 95_000, startBy: addDays(isoDate(now), 14), scope: "15-in pipe, 24 ft, no end treatment", warranty: "None stated", receivedAt: at(11) };
-  cap(15, { type: "bid.quote", bidId, quote: q1 });
-  cap(13, { type: "bid.quote", bidId, quote: q2 });
-  cap(11, { type: "bid.quote", bidId, quote: q3 });
+  // A vote on the culvert estimate
   const culvertVote: Vote = {
     id: uid("vote"),
     kind: "repair",
     question: "Replace the creek culvert with Northern Grade & Gravel for $1,100?",
-    detail: "Lowest bid that meets the 18-inch spec. Hilltop's $950 bid uses a smaller 15-inch pipe that the county engineer said will back up in spring. Paid from savings and this year's dues.",
+    detail: "Northern Grade's estimate: new 18-inch pipe, 30 ft, stone at both ends, road surface restored. Paid from savings and this year's dues.",
     amount: 110_000,
     createdAt: at(4),
     deadline: addDays(isoDate(now), 5),
@@ -259,11 +245,9 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     ballots: [],
     closedAt: null,
     outcome: null,
-    bidId,
   };
-  cap(4, { type: "bid.award", bidId, quoteId: q1.id, voteId: culvertVote.id });
   cap(4, { type: "vote.create", vote: culvertVote });
-  cap(4, { type: "message.log", message: msg(at(4), "vote", "text", homes.map((h) => h.id), `Vote by ${culvertVote.deadline}: ${culvertVote.question} Tap your link to vote.`) });
+  cap(4, { type: "message.log", message: msg(at(4), "vote", "text", homes.map((h) => h.id), `Please vote by ${culvertVote.deadline}: ${culvertVote.question}`) });
   [0, 1, 3, 2].forEach((i, k) => nb(3 - Math.min(k, 2), i, { type: "vote.cast", voteId: culvertVote.id, ballot: { homeId: H(i), choice: "yes", at: at(3 - Math.min(k, 2), 20), via: "link" } }));
   nb(2, 4, { type: "vote.cast", voteId: culvertVote.id, ballot: { homeId: H(4), choice: "no", at: at(2, 21), via: "link" } });
 
@@ -281,7 +265,7 @@ export function buildDemoRoad(now: Date = new Date()): Road {
   doc(404, "plat", "Plat of Birch Hollow Estates (1978)", "Shows the 66-ft road easement and all nine lots.");
   doc(404, "easement", "Access easement, Liber 412 Page 88", "Grants each lot access over the road. No maintenance terms.");
   doc(204, "insurance", `Road liability certificate ${yearOf(at(204))}`, "Cedar Mutual, $1M per occurrence.");
-  doc(30, "minutes", "Annual road meeting minutes", "Approved budget, plow contract vote, culvert bids.");
+  doc(30, "minutes", "Annual road meeting minutes", "Approved budget, plow contract vote, culvert estimate.");
 
   // Past letter for a refinance, and a new request for a sale
   cap(200, {
@@ -300,8 +284,7 @@ export function buildDemoRoad(now: Date = new Date()): Road {
     expense: { id: uid("exp"), contractorId: plow, vendorName: "Kowalski Plowing", description: "Fall setup: 40 plow stakes and season deposit", category: "plowing", amount: 24_000, invoiceDate: day(9), createdAt: at(9), status: "awaiting-approval", approvedAt: null, paidAt: null, paidVia: null, invoiceFileId: null, workEntryId: null },
   });
 
-  cap(30, { type: "reserve.save", reserve: { setAside: 120_000, yearlyContribution: 35_000, inflationPct: 3, items: reserveItems(yearOf(isoDate(now)), lengthFt) } });
-  cap(30, { type: "road.settings", patch: { weather: { enabled: true, snowInches: 3, contractorId: plow } } });
+  cap(30, { type: "reserve.save", reserve: { setAside: 120_000 } });
 
   steps.sort((a, b) => b.daysAgo - a.daysAgo);
   const captainName = HOMES[DEMO_CAPTAIN_INDEX].owners;
@@ -364,15 +347,6 @@ function makeRequest(homes: Home[], title: string, budget: BudgetLine[], created
 
 function msg(at: string, kind: Road["messages"][number]["kind"], channel: Road["messages"][number]["channel"], homeIds: string[], body: string) {
   return { id: uid("msg"), at, kind, channel, homeIds, body };
-}
-
-function reserveItems(year: number, lengthFt: number) {
-  return [
-    { id: uid("res"), name: "Reshape crown and ditches", cost: Math.round((lengthFt * 100) / 5000) * 5000, lifeYears: 6, lastDoneYear: year - 2 },
-    { id: uid("res"), name: "New gravel (3-inch lift)", cost: Math.round((lengthFt * 300) / 5000) * 5000, lifeYears: 10, lastDoneYear: year - 7 },
-    { id: uid("res"), name: "Creek culvert", cost: 110_000, lifeYears: 30, lastDoneYear: year - 31 },
-    { id: uid("res"), name: "Ditch cleaning", cost: Math.round((lengthFt * 35) / 5000) * 5000, lifeYears: 3, lastDoneYear: year },
-  ];
 }
 
 /** "Tom & Linda Becker" -> "Tom Becker" */

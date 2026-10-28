@@ -1,15 +1,14 @@
 "use client";
 
 import type { Recipient } from "@/components/app/send-sheet";
-import { budgetSummary } from "../templates";
+import { baseValues, budgetSummary } from "../templates";
 import { fmtDate } from "../dates";
 import { money } from "../money";
-import { captainHome, displayName, requestProgress } from "../selectors";
+import { checkInMail, displayName, requestProgress } from "../selectors";
 import type { DuesRequest, Home, Road, Vote } from "../types";
 import { neighborLink } from "./backend";
 
 function base(road: Road, h: Home, values: Record<string, string>): Recipient {
-  const cap = captainHome(road);
   return {
     homeId: h.id,
     name: displayName(h),
@@ -19,13 +18,7 @@ function base(road: Road, h: Home, values: Record<string, string>): Recipient {
     email: h.email,
     smsOptIn: h.smsOptIn,
     emailOptIn: h.emailOptIn !== false,
-    values: {
-      first: (h.owners || h.label).split(/\s|&/)[0] || "neighbor",
-      road: road.name,
-      captain: cap ? displayName(cap).split(/\s|&/)[0] : "your road captain",
-      link: neighborLink(road, h.token),
-      ...values,
-    },
+    values: { ...baseValues(road, h, neighborLink(road, h.token)), ...values },
   };
 }
 
@@ -33,7 +26,7 @@ function base(road: Road, h: Home, values: Record<string, string>): Recipient {
 export function duesRecipients(road: Road, request: DuesRequest, now: Date, which: "all" | "unpaid" = "all"): Recipient[] {
   const prog = requestProgress(road, request, now);
   return prog.lines
-    .filter((l) => l.due > 0 && (which === "all" || l.outstanding > 0))
+    .filter((l) => l.due > 0 && (which === "all" || (l.outstanding > 0 && !checkInMail(road, l.home.id, request.id, now))))
     .map((l) =>
       base(road, l.home, {
         amount: money(which === "all" ? l.due : l.outstanding),

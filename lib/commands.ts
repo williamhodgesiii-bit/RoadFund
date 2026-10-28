@@ -2,6 +2,7 @@
 // (local mode, optimistic updates) and on the server (shared mode), so the
 // rules below are the single source of truth.
 
+import { planLabel } from "./pricing.ts";
 import { addBusinessDays, endOfDayUS, fmtDate, yearOf } from "./dates.ts";
 import { computeCharge, SETTLE_BUSINESS_DAYS } from "./fees.ts";
 import { uid } from "./ids.ts";
@@ -12,7 +13,7 @@ import type {
   AgreementStep,
   AgreementTerms,
   Ballot,
-  Bid,
+  CheckNote,
   BudgetLine,
   Contractor,
   DocItem,
@@ -28,7 +29,6 @@ import type {
   Payment,
   PaymentPlan,
   Plan,
-  Quote,
   Reserve,
   Road,
   RoadSettings,
@@ -40,7 +40,7 @@ import type {
 } from "./types.ts";
 
 export type Command =
-  | { type: "road.update"; patch: Partial<Pick<Road, "name" | "state" | "county" | "town" | "surface" | "lengthFt" | "path" | "center">> }
+  | { type: "road.update"; patch: Partial<Pick<Road, "name" | "state" | "county" | "town" | "surface" | "lengthFt" | "path" | "center" | "easementRef" | "allWeather">> }
   | { type: "road.split"; split: SplitSettings }
   | { type: "road.settings"; patch: Partial<RoadSettings> }
   | { type: "road.budget"; budget: BudgetLine[] }
@@ -85,14 +85,10 @@ export type Command =
   | { type: "letterRequest.create"; request: LetterRequest }
   | { type: "letterRequest.decline"; requestId: string; note: string }
   | { type: "reserve.save"; reserve: Reserve }
-  | { type: "bid.save"; bid: Bid }
-  | { type: "bid.quote"; bidId: string; quote: Quote }
-  | { type: "bid.removeQuote"; bidId: string; quoteId: string }
-  | { type: "bid.award"; bidId: string; quoteId: string; voteId: string | null }
-  | { type: "bid.remove"; bidId: string }
   | { type: "plan.create"; plan: PaymentPlan }
   | { type: "plan.cancel"; planId: string }
-  | { type: "notice.create"; notice: Notice };
+  | { type: "notice.create"; notice: Notice }
+  | { type: "check.mailed"; note: CheckNote };
 
 export type CommandType = Command["type"];
 
@@ -203,7 +199,7 @@ export function applyCommand(road: Road, cmd: Command, ctx: Ctx): Road {
 function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
   switch (cmd.type) {
     case "road.update": {
-      const patch = pick(cmd.patch, ["name", "state", "county", "town", "surface", "lengthFt", "path", "center"]);
+      const patch = pick(cmd.patch, ["name", "state", "county", "town", "surface", "lengthFt", "path", "center", "easementRef", "allWeather"]);
       if (patch.name !== undefined && !patch.name.trim()) fail("The road needs a name.");
       if (patch.lengthFt !== undefined && (!Number.isFinite(patch.lengthFt) || patch.lengthFt < 0)) fail("Road length must be a positive number.");
       return { ...road, ...patch, activity: log(road, ctx, "Updated road details") };
@@ -214,13 +210,12 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
       return { ...road, split: cmd.split, activity: log(road, ctx, `Changed the cost split`) };
     }
     case "road.settings":
-      return { ...road, settings: { ...road.settings, ...cmd.patch, weather: { ...road.settings.weather, ...(cmd.patch.weather ?? {}) } } };
+      return { ...road, settings: { ...road.settings, ...cmd.patch } };
     case "road.budget":
       if (cmd.budget.some((b) => b.amount < 0)) fail("Budget amounts can't be negative.");
       return { ...road, budget: cmd.budget, activity: log(road, ctx, "Updated this year's budget") };
     case "road.plan": {
-      const names: Record<Plan, string> = { starter: "Starter (free)", roadfund: "Road Fund ($149/yr)", plus: "Road Fund Plus ($249/yr)" };
-      return { ...road, plan: cmd.plan, activity: log(road, ctx, `Plan changed to ${names[cmd.plan]}`) };
+      return { ...road, plan: cmd.plan, activity: log(road, ctx, `Plan changed to ${planLabel(cmd.plan, road.homes.length)}`) };
     }
 
     case "account.connect":
@@ -257,12 +252,11 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
       };
     }
     case "road.billing": {
-      const names: Record<Plan, string> = { starter: "Starter (free)", roadfund: "Road Fund ($149/yr)", plus: "Road Fund Plus ($249/yr)" };
       return {
         ...road,
         plan: cmd.plan,
         billing: cmd.billing,
-        activity: road.plan !== cmd.plan ? log(road, ctx, `Plan is now ${names[cmd.plan]}`) : road.activity,
+        activity: road.plan !== cmd.plan ? log(road, ctx, `Plan is now ${planLabel(cmd.plan, road.homes.length)}`) : road.activity,
       };
     }
     case "account.opening":
@@ -337,14 +331,23 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
       const r = cmd.request;
       if (road.requests.some((x) => x.id === r.id)) return road;
       if (road.plan === "starter" && requestsThisYear(road, yearOf(ctx.at)) >= STARTER_REQUEST_LIMIT) {
-        fail("The free Starter plan includes one dues request a year. Upgrade to Road Fund to send more.", 402);
+        fail("The free plan includes one dues request a year. Upgrade to Road Fund to send more.", 402);
       }
       if (!r.title.trim()) fail("Give the request a title.");
       if (r.total <= 0) fail("The total must be more than $0.");
       const lineSum = r.lines.reduce((a, l) => a + l.amount, 0);
       if (lineSum !== r.total) fail("Shares don't add up to the total.");
       for (const l of r.lines) must(road.homes.find((h) => h.id === l.homeId), "Home on this request");
-      return { ...road, requests: [r, ...road.requests], activity: log(road, ctx, `Created dues request "${r.title}" for ${money(r.total)}`) };
+      if (r.voteId) {
+        const v = must(road.votes.find((x) => x.id === r.voteId), "Vote");
+        if (v.outcome !== "passed") fail("Bill a project only after the vote passes.", 409);
+      }
+      return {
+        ...road,
+        requests: [r, ...road.requests],
+        votes: r.voteId ? road.votes.map((v) => (v.id === r.voteId ? { ...v, requestId: r.id } : v)) : road.votes,
+        activity: log(road, ctx, `Created ${r.voteId ? "project bill" : "dues request"} "${r.title}" for ${money(r.total)}`),
+      };
     }
     case "request.sent": {
       const r = must(road.requests.find((x) => x.id === cmd.requestId), "Request");
@@ -383,11 +386,14 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
         fail("The road's bank account isn't connected yet, so online payments are off. Ask your road captain.", 409);
       }
       const payment = { ...p, receiptNo: nextReceiptNo(road, p.paidAt) };
-      const how = { ach: "bank transfer", card: "card", check: "check", cash: "cash" }[p.method];
+      const how = { ach: "from a checking account", card: "by card", check: "by check", cash: "in cash" }[p.method];
+      // A check that arrives settles the "check is in the mail" note.
+      const settled = p.method === "check" || p.method === "cash";
       return {
         ...road,
         payments: [payment, ...road.payments],
-        activity: log(road, ctx, `${homeName(road, p.homeId)} paid ${money(p.amount)} by ${how}`),
+        checkNotes: settled ? (road.checkNotes ?? []).filter((n) => !(n.homeId === p.homeId && n.requestId === p.requestId)) : road.checkNotes,
+        activity: log(road, ctx, `${homeName(road, p.homeId)} paid ${money(p.amount)} ${how}`),
       };
     }
     case "payment.void": {
@@ -537,7 +543,7 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
       return {
         ...road,
         agreement: { ...road.agreement, packagePurchasedAt: ctx.at },
-        activity: log(road, ctx, "Bought the agreement package ($249)"),
+        activity: log(road, ctx, "Bought help with the agreement"),
       };
     case "agreement.step": {
       const a = road.agreement;
@@ -618,37 +624,8 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
     }
 
     case "reserve.save":
-      if (cmd.reserve.items.some((i) => i.lifeYears < 1 || i.cost < 0)) fail("Each item needs a cost and a life of at least 1 year.");
-      return { ...road, reserve: cmd.reserve };
-
-    case "bid.save": {
-      if (!cmd.bid.title.trim()) fail("Name the job.");
-      const isNew = !road.bids.some((b) => b.id === cmd.bid.id);
-      return { ...road, bids: replace(road.bids, cmd.bid), activity: isNew ? log(road, ctx, `Asked for bids: ${cmd.bid.title}`) : road.activity };
-    }
-    case "bid.quote": {
-      const b = must(road.bids.find((x) => x.id === cmd.bidId), "Bid");
-      if (cmd.quote.amount <= 0) fail("Quote amount must be more than $0.");
-      if (!cmd.quote.vendorName.trim()) fail("Who is the quote from?");
-      return {
-        ...road,
-        bids: road.bids.map((x) => (x.id === b.id ? { ...x, quotes: replace(x.quotes, cmd.quote) } : x)),
-        activity: log(road, ctx, `Quote from ${cmd.quote.vendorName}: ${money(cmd.quote.amount)} for ${b.title}`),
-      };
-    }
-    case "bid.removeQuote":
-      return { ...road, bids: road.bids.map((x) => (x.id === cmd.bidId ? { ...x, quotes: x.quotes.filter((q) => q.id !== cmd.quoteId) } : x)) };
-    case "bid.award": {
-      const b = must(road.bids.find((x) => x.id === cmd.bidId), "Bid");
-      const q = must(b.quotes.find((x) => x.id === cmd.quoteId), "Quote");
-      return {
-        ...road,
-        bids: road.bids.map((x) => (x.id === b.id ? { ...x, status: "awarded", awardedQuoteId: q.id, voteId: cmd.voteId ?? x.voteId } : x)),
-        activity: log(road, ctx, `Picked ${q.vendorName} (${money(q.amount)}) for ${b.title}`),
-      };
-    }
-    case "bid.remove":
-      return { ...road, bids: road.bids.filter((x) => x.id !== cmd.bidId) };
+      if (!(cmd.reserve.setAside >= 0)) fail("The amount set aside can't be negative.");
+      return { ...road, reserve: { setAside: cmd.reserve.setAside } };
 
     case "plan.create": {
       const p = cmd.plan;
@@ -666,6 +643,12 @@ function reduce(road: Road, cmd: Command, ctx: Ctx): Road {
     case "plan.cancel":
       return { ...road, plans: road.plans.map((p) => (p.id === cmd.planId ? { ...p, status: "cancelled" } : p)) };
 
+    case "check.mailed": {
+      const n = cmd.note;
+      must(road.requests.find((r) => r.id === n.requestId), "Bill");
+      const others = (road.checkNotes ?? []).filter((x) => !(x.homeId === n.homeId && x.requestId === n.requestId));
+      return { ...road, checkNotes: [n, ...others], activity: log(road, ctx, `${homeName(road, n.homeId)} says a check for ${money(n.amount)} is in the mail`) };
+    }
     case "notice.create": {
       const n = cmd.notice;
       const label = { friendly: "friendly reminder", formal: "formal notice", final: "final notice" }[n.kind];
@@ -693,8 +676,8 @@ export const COMMAND_TYPES = new Set<string>([
   "vote.create", "vote.cast", "vote.close", "doc.add", "doc.remove",
   "agreement.terms", "agreement.purchase", "agreement.step", "agreement.sign",
   "letter.create", "letterRequest.create", "letterRequest.decline",
-  "reserve.save", "bid.save", "bid.quote", "bid.removeQuote", "bid.award", "bid.remove",
-  "plan.create", "plan.cancel", "notice.create",
+  "reserve.save",
+  "plan.create", "plan.cancel", "notice.create", "check.mailed",
 ] satisfies CommandType[]);
 
 export function isCommand(value: unknown): value is Command {
@@ -739,6 +722,9 @@ export function assertNeighborCommand(road: Road, homeId: string, cmd: Command):
       return;
     case "home.contact":
       if (cmd.homeId !== homeId) fail("You can only change your own contact settings.", 403);
+      return;
+    case "check.mailed":
+      if (cmd.note.homeId !== homeId) fail("You can only speak for your own home.", 403);
       return;
     default:
       fail("Not allowed from a neighbor link.", 403);

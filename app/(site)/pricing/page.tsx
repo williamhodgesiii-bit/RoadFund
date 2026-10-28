@@ -1,118 +1,74 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DeploymentNote } from "@/components/deployment-note";
-import { Check } from "lucide-react";
 import { FeeCalculator } from "@/components/fee-calculator";
-import { ButtonLink } from "@/components/ui";
+import { PlanCards } from "@/components/plan-cards";
+import { money } from "@/lib/money";
+import { AGREEMENT_PACKAGE, LETTER_FEE, PLAN_LARGE, PLAN_SMALL } from "@/lib/pricing";
+
+const $ = (c: number) => money(c).replace(".00", "");
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Free Starter plan, $149 a year for the full Road Fund plan, $249 for Plus. Road Status Letters $75. Agreement package $249.",
+  description: `Free for one bill a year. Road Fund is ${$(PLAN_SMALL)} a year for roads with up to 8 homes and ${$(PLAN_LARGE)} for 9 to 30. Checks and cash are always free.`,
 };
-
-const PLANS = [
-  {
-    name: "Starter",
-    price: "Free",
-    per: "",
-    who: "Try it on this year's dues.",
-    lines: ["Road setup and share calculator", "One dues request a year", "Neighbor pay links by text, email or letter", "Ledger and receipts", "Road Status Letters ($75 each)"],
-  },
-  {
-    name: "Road Fund",
-    price: "$149",
-    per: "per road, per year",
-    who: "For roads up to 30 homes. Usually paid from dues.",
-    highlight: true,
-    lines: [
-      "Everything in Starter",
-      "Unlimited dues requests and reminders",
-      "Pay contractors from the road account",
-      "Work log with photos and damage map",
-      "Votes by text link",
-      "Storage for deeds, plat, insurance and minutes",
-      "AI assistant: messages, quotes, deeds",
-      "Savings planner for big repairs",
-      "Weather alerts to your plow contractor",
-    ],
-  },
-  {
-    name: "Road Fund Plus",
-    price: "$249",
-    per: "per year",
-    who: "Larger roads, or a captain running several.",
-    lines: ["Everything in Road Fund", "Late-payer toolkit: notices, payment plans, small-claims packet", "Tax pack: 1099 tracking, Form 1120-H checklist, year-end report", "Several roads in one browser"],
-  },
-];
 
 export default function PricingPage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12">
+    <div className="mx-auto max-w-5xl px-4 py-12">
       <h1 className="text-[2.4rem] font-black">Pricing</h1>
-      <p className="mt-3 max-w-2xl text-[1.1rem] text-stone">
-        The cheapest HOA software for a 10-home road runs $468 to $588 a year. Road Fund costs less and is built for a road, not a board.
+      <p className="mt-3 max-w-2xl text-[1.15rem] text-stone">
+        Free for one bill a year. One flat yearly price when the road needs more. Checks and cash never cost anything.
       </p>
 
-      <div className="mt-10 grid gap-5 lg:grid-cols-3">
-        {PLANS.map((p) => (
-          <section key={p.name} className={`flex flex-col rounded-[var(--radius-card)] border-2 bg-white p-6 ${p.highlight ? "border-pine shadow-lift" : "border-line"}`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-[1.25rem] font-extrabold">{p.name}</h2>
-              {p.highlight && <span className="sign-chip rounded-md px-2 py-0.5 text-[0.8rem] font-bold">Most roads</span>}
-            </div>
-            <p className="mt-2">
-              <span className="tnum font-display text-[2.4rem] font-black">{p.price}</span>
-              {p.per && <span className="ml-2 text-stone">{p.per}</span>}
-            </p>
-            <p className="text-stone">{p.who}</p>
-            <ul className="mt-5 flex-1 space-y-2.5">
-              {p.lines.map((l) => (
-                <li key={l} className="flex gap-2">
-                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-pine" aria-hidden />
-                  {l}
-                </li>
-              ))}
-            </ul>
-            <ButtonLink href="/start" variant={p.highlight ? "primary" : "secondary"} block className="mt-6">
-              {p.name === "Starter" ? "Start free" : "Start free, upgrade anytime"}
-            </ButtonLink>
-          </section>
-        ))}
+      <div className="mt-10">
+        <PlanCards />
       </div>
 
-      <h2 className="mt-16 text-[1.8rem] font-black">One-time services</h2>
+      <h2 className="mt-16 text-[1.8rem] font-black">When a house on the road sells</h2>
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <section className="rounded-[var(--radius-card)] border border-line bg-white p-6">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="text-[1.2rem] font-extrabold">Road Status Letter</h3>
-            <span className="tnum font-display text-[1.6rem] font-black">$75</span>
+            <span className="tnum font-display text-[1.6rem] font-black">{$(LETTER_FEE)}</span>
           </div>
           <p className="mt-2 text-stone">
-            A dated letter for a buyer&apos;s lender or title company, ready in minutes. Usually paid by the seller or through closing. HOAs charge $75 to $375 for the
-            same kind of letter; Texas caps resale certificates at $375 and Florida caps estoppel fees at $299.
+            A dated letter for the buyer&apos;s title company or lender: whether there&apos;s a road agreement, what the seller owes, the road&apos;s savings and any planned work.
+            Paid by whoever asks for it, usually passed to the seller at closing. Includes one free update within 30 days if the closing moves. Checking a letter&apos;s code
+            is always free. The road captain is never charged.
           </p>
         </section>
         <section className="rounded-[var(--radius-card)] border border-line bg-white p-6">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-[1.2rem] font-extrabold">Agreement package</h3>
-            <span className="tnum font-display text-[1.6rem] font-black">$249</span>
+            <h3 className="text-[1.2rem] font-extrabold">Help with the agreement</h3>
+            <span className="tnum font-display text-[1.6rem] font-black">{$(AGREEMENT_PACKAGE)}</span>
           </div>
           <p className="mt-2 text-stone">
-            State template drafted from your road&apos;s data, booking with a partner attorney, e-signatures from every owner, remote online notary and county recording.
-            Attorney, notary and county recording fees are passed through at cost.
+            Drafting the agreement and collecting every owner&apos;s signature is free in Road Fund. If you&apos;d like a person to do the rest, we line up a local attorney to
+            review it, set up the notary and file it with your county.
           </p>
+          <p className="mt-3 font-semibold">Costs paid to others, at cost:</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-stone">
+            <li>Attorney review: often $200 to $800 for a simple agreement</li>
+            <li>Notary: set by your state</li>
+            <li>County recording: set by your county, usually by the page</li>
+          </ul>
         </section>
       </div>
 
-      <h2 className="mt-16 text-[1.8rem] font-black">What neighbors pay</h2>
+      <h2 className="mt-16 text-[1.8rem] font-black">What neighbors pay to pay online</h2>
       <p className="mt-3 max-w-2xl text-stone">
-        Each online payment carries a $1 Road Fund fee plus processing. Bank payments are the default because they cost far less than cards. The road decides who
-        covers fees.
+        Each online payment has a $1 Road Fund fee plus the bank or card company&apos;s charge. The neighbor sees the exact total before paying. The road decides whether
+        neighbors or the road cover it. Paying by check or cash is always free.
       </p>
       <div className="mt-6">
         <FeeCalculator />
       </div>
 
-      <DeploymentNote variant="pricing" className="mt-10 rounded-xl bg-paper-2 px-4 py-3 text-[0.95rem] text-stone" />
+      <p className="mt-10 text-stone">
+        Questions? See <Link href="/help#captains" className="font-semibold text-lake underline">help for road captains</Link>.
+      </p>
+      <DeploymentNote variant="pricing" className="mt-6 rounded-xl bg-paper-2 px-4 py-3 text-[0.95rem] text-stone" />
     </div>
   );
 }

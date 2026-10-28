@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Banknote, CircleCheck, Hammer, Landmark, ListChecks, PiggyBank, Vote, X } from "lucide-react";
 import { StatusPill } from "@/components/app/common";
-import { WeatherCard } from "@/components/app/weather-card";
 import { ButtonLink, Card, CardHeader, cx, Empty, Progress } from "@/components/ui";
 import { useRoad } from "@/lib/client/road-context";
 import { fmtDateTime, fmtDay } from "@/lib/dates";
@@ -72,7 +71,7 @@ export default function HomePage() {
           <CardHeader
             title={req ? req.title : "Dues"}
             icon={<Banknote className="h-5 w-5" aria-hidden />}
-            sub={req && prog ? `${prog.homesPaid} of ${prog.homesBilled} homes paid · ${req.status === "closed" ? "closed" : dueSoonText(req.dueDate, now)}` : "No dues request yet"}
+            sub={req && prog ? `${prog.homesPaid} of ${prog.homesBilled} homes paid · ${req.status === "closed" ? "closed" : dueSoonText(req.dueDate, now)}` : "No bill yet"}
             action={
               req && (
                 <Link href={`/app/money/requests/${req.id}`} className="shrink-0 font-semibold text-pine hover:underline">
@@ -115,7 +114,7 @@ export default function HomePage() {
         <div className="space-y-6">
           {/* Balance */}
           <Card>
-            <CardHeader title="Road account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub={road.account.status === "connected" ? `${road.account.bankName} ••${road.account.last4}` : "Not connected"} action={<Link href="/app/money/ledger" className="shrink-0 font-semibold text-pine hover:underline">Ledger</Link>} />
+            <CardHeader title="Road account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub={road.account.status === "connected" ? `${road.account.bankName} ••${road.account.last4}` : "Not connected"} action={<Link href="/app/money/ledger" className="shrink-0 font-semibold text-pine hover:underline">Payment record</Link>} />
             <div className="grid grid-cols-2 gap-4 p-5">
               <div>
                 <p className="text-[0.85rem] font-semibold text-stone">Balance</p>
@@ -160,13 +159,11 @@ export default function HomePage() {
                   {u.amount !== null && <span className="tnum shrink-0 font-semibold">{money(u.amount)}</span>}
                 </li>
               ))}
-              {!openVote && upcoming.length === 0 && <li className="px-5 py-4 text-stone">Nothing scheduled. Add big repairs in the savings plan.</li>}
+              {!openVote && upcoming.length === 0 && <li className="px-5 py-4 text-stone">Nothing planned. Start a vote when the road needs work.</li>}
             </ul>
           </Card>
         </div>
       </div>
-
-      <WeatherCard />
 
       <Card>
         <CardHeader title="Recent activity" sub="Every change is recorded, so anyone can see what happened and when." />
@@ -193,7 +190,7 @@ function greeting(now: Date): string {
 function buttonText(id: string): string {
   if (id === "bank") return "Connect bank account";
   if (id.startsWith("letter-")) return "Create the letter";
-  if (id === "dues") return "Start dues request";
+  if (id === "dues") return "Start this year's bill";
   if (id.startsWith("send-")) return "Send it";
   if (id.startsWith("bill-")) return "Review the bill";
   if (id.startsWith("pay-")) return "Pay it";
@@ -300,9 +297,9 @@ function Welcome({ demo, roadId }: { demo: boolean; roadId: string }) {
               ["A title company is waiting on a Road Status Letter.", "/app/papers/letters"],
               ["Pay as a neighbor: open Lot 6's link and pay by bank.", "/app/neighbors"],
               ["Approve and pay the plow contractor's bill.", "/app/money/bills"],
-              ["Compare the three culvert bids.", "/app/road/bids"],
               ["Check who still needs to sign the agreement.", "/app/papers/agreement"],
-              ["See if the savings plan covers new gravel.", "/app/road/reserve"],
+              ["See how the culvert vote is going.", "/app/papers"],
+              ["Look at what each home paid this year.", "/app/money/ledger"],
             ].map(([t, href], i) => (
               <li key={href}>
                 <Link href={href} className="flex items-start gap-2 rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15">
@@ -318,7 +315,7 @@ function Welcome({ demo, roadId }: { demo: boolean; roadId: string }) {
           <p className="flex items-center gap-2 text-[1.2rem] font-extrabold">
             <CircleCheck className="h-6 w-6 text-sign" aria-hidden /> Your road is set up.
           </p>
-          <p className="mt-1 opacity-90">Next: send this year&apos;s dues if you haven&apos;t, add your contractors, and put your deed and plat in Documents.</p>
+          <p className="mt-1 opacity-90">Next: send this year&apos;s dues if you haven&apos;t, and add the people who plow and grade the road.</p>
         </>
       )}
     </div>

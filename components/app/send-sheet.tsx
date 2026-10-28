@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Mail, MessageSquare, Printer, Send, Sparkles } from "lucide-react";
-import { Button, Callout, cx, Dialog, Textarea } from "@/components/ui";
+import { Check, Copy, Mail, MessageSquare, Printer, Send } from "lucide-react";
+import { Button, Callout, Checkbox, cx, Dialog, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { ai, sendFromServer } from "@/lib/client/backend";
+import { sendFromServer } from "@/lib/client/backend";
 import { copyText, mailtoHref, smsHref } from "@/lib/client/links";
 import { useRoad } from "@/lib/client/road-context";
 import { uid } from "@/lib/ids";
 import type { Channel, MessageLog } from "@/lib/types";
 import { fillTokens, smsLength, SMS_FOOTER, TEMPLATE_SUBJECT, TOKEN_TEMPLATES, type TemplateKind } from "@/lib/templates";
-import { useAiOn } from "./common";
 
 export interface Recipient {
   homeId: string;
@@ -28,9 +27,9 @@ const usPhone = (p: string) => /^1?[2-9]\d{9}$/.test(p.replace(/\D/g, ""));
 
 /**
  * Sends one message to many neighbors. When email or texting is set up, Road
- * Fund sends it: texts to neighbors who opted in, email to the rest. Anyone it
- * can't reach gets a one-tap button that opens the captain's own Messages or
- * email app with the text filled in, or a printed letter.
+ * Fund sends it: texts to neighbors who agreed to them, email to the rest.
+ * Anyone it can't reach gets a button that opens the captain's own Messages
+ * or email app with the message filled in, or a printed letter.
  */
 export function SendSheet({
   open,
@@ -50,29 +49,29 @@ export function SendSheet({
   onLogged: (message: MessageLog) => Promise<boolean> | boolean;
 }) {
   const toast = useToast();
-  const aiOn = useAiOn();
   const { road, entry, status, replace } = useRoad();
   const [template, setTemplate] = useState(TOKEN_TEMPLATES[kind]);
   const [touched, setTouched] = useState<Record<string, Channel>>({});
   const [serverSent, setServerSent] = useState<Set<string>>(() => new Set());
   const [failed, setFailed] = useState<{ homeId: string; name: string; error: string }[]>([]);
   const [sending, setSending] = useState(false);
+  // The first message from Road Fund shouldn't be the first a neighbor hears of it.
+  const firstTime = road.messages.length === 0 && kind !== "reminder" && kind !== "friendly";
+  const [told, setTold] = useState(!firstTime);
   const server = entry.where === "cloud" && !road.demo && (status.email || status.sms);
   const reach = (r: Recipient): "text" | "email" | null =>
     status.sms && r.smsOptIn && usPhone(r.phone) ? "text" : status.email && r.email.includes("@") && r.emailOptIn !== false ? "email" : null;
-  const [rewriting, setRewriting] = useState(false);
-  const [tone, setTone] = useState<"friendly" | "firm">(kind === "formal" || kind === "final" ? "firm" : "friendly");
 
   const auto = server ? recipients.filter((r) => reach(r)) : recipients.filter((r) => r.smsOptIn && r.phone);
   const manual = server ? recipients.filter((r) => !reach(r) || failed.some((f) => f.homeId === r.homeId)) : recipients.filter((r) => !(r.smsOptIn && r.phone));
   const byText = auto.filter((r) => reach(r) === "text").length;
-  const sample = recipients[0];
+  // Preview with a neighbor, not the captain writing to themselves.
+  const sample = recipients.find((r) => r.homeId !== road.captainHomeId) ?? recipients[0];
   const sampleText = sample ? fillTokens(template, sample.values) : template;
   const len = smsLength(`${sampleText} ${SMS_FOOTER}`);
 
   const bodyFor = (r: Recipient) => fillTokens(template, r.values);
   const subjectFor = (r: Recipient) => fillTokens(TEMPLATE_SUBJECT[kind], r.values);
-
   const mark = (homeId: string, channel: Channel) => setTouched((t) => ({ ...t, [homeId]: channel }));
 
   const log = async (homeIds: string[], channel: Channel) => {
@@ -104,7 +103,7 @@ export function SendSheet({
     );
     if (ok) {
       auto.forEach((r) => mark(r.homeId, "text"));
-      toast(`Texted ${auto.length} neighbor${auto.length === 1 ? "" : "s"} (simulated).`);
+      toast(`Texted ${auto.length} neighbor${auto.length === 1 ? "" : "s"} (test mode, nothing sent).`);
     }
   };
 
@@ -119,33 +118,34 @@ export function SendSheet({
     onClose();
   };
 
-  const rewrite = async () => {
-    setRewriting(true);
-    const facts: Record<string, string> = { road: road.name, "message type": kind, "tokens to keep exactly": "{first} {amount} {due} {link} {captain} {road} {title} {question} {deadline} {budget} {lateFee} {graceDays}" };
-    const res = await ai<{ text: string }>({ task: "message", kind, tone, draft: template, facts, channel: "text" });
-    setRewriting(false);
-    if (res.ok && res.data?.text) {
-      const missing = ["{link}"].filter((t) => template.includes(t) && !res.data!.text.includes(t));
-      if (missing.length) return toast("The rewrite dropped the pay link, so it wasn't used. Try again.", "error");
-      setTemplate(res.data.text);
-    } else toast(res.error ?? "Rewrite failed.", "error");
-  };
-
-  const printLetters = (list: Recipient[]) => {
+  const printLetters = (list: Recipient[], body: (r: Recipient) => string, markSent = true) => {
     const w = window.open("", "_blank");
     if (!w) return toast("Allow pop-ups to print letters.", "error");
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    const dated = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     const pages = list
       .map(
-        (r) => `<section><p>${esc(r.name)}<br>${esc(r.address || r.label)}</p><p>${esc(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))}</p><p>Dear ${esc(r.name)},</p><p>${esc(bodyFor(r)).replace(/https?:\/\/\S+/g, (u) => `<br><strong>${u}</strong><br>`)}</p><p>You can also pay by check made out to the road and given to the road captain.</p></section>`,
+        (r) =>
+          `<section><p>${esc(dated)}</p><p>${esc(r.name)}<br>${esc(r.address || r.label)}</p><p>Dear ${esc(r.name)},</p>${body(r)
+            .split("\n\n")
+            .map((p) => `<p>${esc(p).replace(/https?:\/\/\S+/g, (u) => `<br><strong>${u}</strong><br>`)}</p>`)
+            .join("")}<p>${esc(r.values.captainFull ?? "")}<br>${esc(road.name)}</p></section>`,
       )
       .join("");
     w.document.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>${esc(road.name)} letters</title><style>body{font:16px/1.6 Georgia,serif;color:#1E2320;margin:0}section{padding:1in;page-break-after:always;max-width:6.5in}strong{font-family:monospace;font-size:14px;word-break:break-all}</style></head><body>${pages}<script>window.onload=()=>window.print()</script></body></html>`,
+      `<!doctype html><html><head><meta charset="utf-8"><title>${esc(road.name)} letters</title><style>body{font:17px/1.6 Georgia,serif;color:#1E2320;margin:0}section{padding:1in;page-break-after:always;max-width:6.5in}strong{font-family:monospace;font-size:15px;word-break:break-all}</style></head><body>${pages}<script>window.onload=()=>window.print()</script></body></html>`,
     );
     w.document.close();
-    list.forEach((r) => mark(r.homeId, "print"));
+    if (markSent) list.forEach((r) => mark(r.homeId, "print"));
   };
+
+  /** A paper letter from the captain, so neighbors know a text from Road Fund is coming and that it's real. */
+  const introLetter = (r: Recipient) =>
+    [
+      `Starting now, ${road.name} is keeping its road money on Road Fund: each home's share, what was paid, and every bill for plowing and gravel. Every neighbor can see the same numbers.`,
+      `You'll get a text or email from me with a link to your own page. It shows what you owe, why, and how to pay by bank, card or check. There's nothing to download and no password. You can also type this address into your browser: ${r.values.link}`,
+      `Paying by check is always fine. ${r.values.verify}`,
+    ].join("\n\n");
 
   const touchedCount = Object.keys(touched).length;
 
@@ -167,44 +167,45 @@ export function SendSheet({
       }
     >
       <div className="space-y-5">
+        {firstTime && (
+          <Callout tone="warn" title="First, tell your neighbors it's coming">
+            <p>People are warned not to tap links in texts they weren&apos;t expecting. Before the first message, hand out or mail a short letter from you, or mention it in person.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button size="sm" variant="secondary" icon={<Printer className="h-4 w-4" aria-hidden />} onClick={() => printLetters(recipients, introLetter, false)}>
+                Print a letter for each home
+              </Button>
+            </div>
+            <div className="mt-3">
+              <Checkbox checked={told} onChange={setTold} label="My neighbors know a message from me through Road Fund is coming" />
+            </div>
+          </Callout>
+        )}
+
         <div>
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="send-template" className="font-semibold">
-              Message
-            </label>
-            {aiOn && (
-              <div className="flex items-center gap-2">
-                <select value={tone} onChange={(e) => setTone(e.target.value as "friendly" | "firm")} className="rounded-lg border border-line bg-white px-2 py-1.5 text-[0.9rem]" aria-label="Tone">
-                  <option value="friendly">Friendly</option>
-                  <option value="firm">Firm</option>
-                </select>
-                <Button size="sm" variant="secondary" loading={rewriting} icon={<Sparkles className="h-4 w-4" aria-hidden />} onClick={rewrite}>
-                  Rewrite in my voice
-                </Button>
-              </div>
-            )}
-          </div>
+          <label htmlFor="send-template" className="mb-1.5 block font-semibold">
+            Message
+          </label>
           <Textarea id="send-template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={4} />
-          <p className="mt-1.5 text-[0.88rem] text-stone">
-            Words in braces fill in per neighbor: {"{first}"}, {"{amount}"}, {"{due}"}, {"{link}"}. Preview for {sample?.name ?? "a neighbor"}: {len.chars} characters
-            {len.segments > 1 ? `, ${len.segments} text segments` : ""}.
+          <p className="mt-1.5 text-[0.9rem] text-stone">
+            Words in braces fill in for each neighbor: their name, amount, due date and link. Here is how it reads for {sample?.name ?? "a neighbor"}
+            {len.segments > 1 ? ` (${len.segments} text messages long)` : ""}:
           </p>
-          {sample && <p className="mt-2 rounded-xl bg-paper p-3 text-[0.95rem]">{sampleText}</p>}
+          {sample && <p className="mt-2 rounded-xl bg-paper p-3 text-[0.98rem]">{sampleText}</p>}
         </div>
 
         {auto.length > 0 && server && (
           <Callout
             tone="ok"
-            title={`Road Fund can reach ${auto.length} neighbor${auto.length === 1 ? "" : "s"}`}
+            title={`Road Fund can send this to ${auto.length} neighbor${auto.length === 1 ? "" : "s"} for you`}
             action={
-              <Button size="sm" loading={sending} icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={auto.every((a) => serverSent.has(a.homeId))}>
+              <Button size="sm" loading={sending} icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={!told || auto.every((a) => serverSent.has(a.homeId))}>
                 {auto.every((a) => serverSent.has(a.homeId)) ? "Sent" : `Send to ${auto.length} now`}
               </Button>
             }
           >
             {[byText ? `${byText} by text` : null, auto.length - byText ? `${auto.length - byText} by email` : null].filter(Boolean).join(", ")}.{" "}
             {byText ? <>Each text ends with &ldquo;{SMS_FOOTER}&rdquo; </> : null}
-            Emails come from {road.name} via Road Fund, and replies go to you.
+            Emails come from {road.name} through Road Fund, and replies come to you.
           </Callout>
         )}
         {failed.length > 0 && (
@@ -224,7 +225,7 @@ export function SendSheet({
             tone="ok"
             title={`${auto.length} neighbor${auto.length === 1 ? "" : "s"} agreed to texts`}
             action={
-              <Button size="sm" icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={auto.every((a) => touched[a.homeId])}>
+              <Button size="sm" icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={!told || auto.every((a) => touched[a.homeId])}>
                 {auto.every((a) => touched[a.homeId]) ? "Sent" : `Text all ${auto.length} now`}
               </Button>
             }
@@ -234,8 +235,8 @@ export function SendSheet({
         )}
 
         <div>
-          <p className="font-semibold">{auto.length ? "Everyone else" : "Send to each neighbor"}</p>
-          <p className="text-[0.9rem] text-stone">Text and Email open your phone&apos;s own apps with the message filled in. You press send.</p>
+          <p className="font-semibold">{auto.length ? "Everyone else: send it yourself" : "Send it to each neighbor"}</p>
+          <p className="text-[0.95rem] text-stone">Text and Email open your own phone&apos;s apps with the message filled in. You press send. Letter prints a page to hand out or mail.</p>
           <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
             {(auto.length ? manual : recipients).map((r) => {
               const body = bodyFor(r);
@@ -246,12 +247,12 @@ export function SendSheet({
                     <p className="flex items-center gap-2 font-semibold">
                       {r.name}
                       {t && (
-                        <span className="inline-flex items-center gap-1 text-[0.82rem] font-semibold text-pine">
+                        <span className="inline-flex items-center gap-1 text-[0.85rem] font-semibold text-pine">
                           <Check className="h-4 w-4" aria-hidden /> {DONE_LABEL[t]}
                         </span>
                       )}
                     </p>
-                    <p className="truncate text-[0.88rem] text-stone">{[r.values.amount, r.phone || null, r.email || null].filter(Boolean).join(" · ") || "No phone or email on file"}</p>
+                    <p className="truncate text-[0.9rem] text-stone">{[r.values.amount, r.phone || null, r.email || null].filter(Boolean).join(" · ") || "No phone or email on file"}</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {r.phone && (
@@ -270,13 +271,13 @@ export function SendSheet({
                       onClick={async () => {
                         if (await copyText(body)) {
                           mark(r.homeId, "link");
-                          toast(`Copied ${r.name}'s message.`);
+                          toast(`Copied the message for ${r.name}.`);
                         }
                       }}
                     >
                       <Copy className="h-4 w-4" aria-hidden /> Copy
                     </button>
-                    <button type="button" className={chip(t === "print")} onClick={() => printLetters([r])}>
+                    <button type="button" className={chip(t === "print")} onClick={() => printLetters([r], bodyFor)}>
                       <Printer className="h-4 w-4" aria-hidden /> Letter
                     </button>
                   </div>
@@ -285,8 +286,14 @@ export function SendSheet({
             })}
           </ul>
           {manual.length > 1 && (
-            <Button size="sm" variant="ghost" className="mt-2" icon={<Printer className="h-4 w-4" aria-hidden />} onClick={() => printLetters(manual.filter((m) => !m.phone && !m.email).length ? manual.filter((m) => !m.phone && !m.email) : manual)}>
-              Print letters for {manual.filter((m) => !m.phone && !m.email).length ? "neighbors without phone or email" : "everyone listed"}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="mt-2"
+              icon={<Printer className="h-4 w-4" aria-hidden />}
+              onClick={() => printLetters(manual.filter((m) => !m.phone && !m.email).length ? manual.filter((m) => !m.phone && !m.email) : manual, bodyFor)}
+            >
+              Print letters for {manual.filter((m) => !m.phone && !m.email).length ? "neighbors without a phone or email" : "everyone listed"}
             </Button>
           )}
         </div>
@@ -299,7 +306,7 @@ const DONE_LABEL: Record<Channel, string> = { text: "texted", email: "emailed", 
 
 function chip(on: boolean) {
   return cx(
-    "inline-flex min-h-10 items-center gap-1.5 rounded-lg border-2 px-3 text-[0.9rem] font-semibold",
+    "inline-flex min-h-11 items-center gap-1.5 rounded-lg border-2 px-3 text-[0.95rem] font-semibold",
     on ? "border-pine bg-pine-50 text-pine" : "border-line bg-white text-charcoal hover:border-field",
   );
 }

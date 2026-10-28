@@ -13,6 +13,7 @@ import { signRecipients } from "@/lib/client/recipients";
 import { useRoad } from "@/lib/client/road-context";
 import { fmtDate, fmtDateTime, isoDate } from "@/lib/dates";
 import { money } from "@/lib/money";
+import { AGREEMENT_PACKAGE } from "@/lib/pricing";
 import { latestShares } from "@/lib/neighbor";
 import { agreementSigned, displayName } from "@/lib/selectors";
 import { defaultLaw, RON_UNAVAILABLE, stateName } from "@/lib/states";
@@ -168,7 +169,7 @@ function StepPanel({ onSign, onRecord, signed }: { onSign: () => void; onRecord:
   ) : (
     <Callout
       tone="info"
-      title="Want us to handle it? Agreement package: $249"
+      title={`Want us to handle the rest? ${money(AGREEMENT_PACKAGE).replace(".00", "")}`}
       action={
         <Button variant="secondary" loading={buy.busy === "agreement"} onClick={() => buy.agreement()}>
           Add the package

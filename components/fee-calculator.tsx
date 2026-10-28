@@ -20,10 +20,11 @@ export function FeeCalculator() {
         </Field>
         <Toggle checked={payerCovers} onChange={setPayerCovers} label="Neighbor covers the fees" hint={payerCovers ? "The road gets the full share." : "The road absorbs the fees."} />
       </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[
-          { name: "By bank (recommended)", c: ach, note: "0.8%, capped at $5, plus $1" },
-          { name: "By card", c: card, note: "2.9% + 30¢, plus $1" },
+          { name: "From a checking account", c: ach, note: "0.8%, at most $5, plus $1" },
+          { name: "By debit or credit card", c: card, note: "2.9% + 30¢, plus $1" },
+          { name: "By check or cash", c: { share, total: share, platformFee: 0, processingFee: 0, roadNet: share }, note: "Always free" },
         ].map(({ name, c, note }) => (
           <div key={name} className="rounded-xl bg-paper p-4">
             <p className="font-bold">{name}</p>
@@ -31,7 +32,7 @@ export function FeeCalculator() {
             <dl className="mt-3 space-y-1.5 text-[0.95rem]">
               <Row k="Neighbor pays" v={money(c.total)} strong />
               <Row k="Road Fund fee" v={money(c.platformFee)} />
-              <Row k="Processing" v={money(c.processingFee)} />
+              <Row k="Bank or card charge" v={money(c.processingFee)} />
               <Row k="Road receives" v={money(c.roadNet)} strong />
             </dl>
           </div>

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Check, CircleMinus, Send, X } from "lucide-react";
 import { PageHeader } from "@/components/app/common";
 import { SendSheet } from "@/components/app/send-sheet";
-import { Button, Callout, Card, CardHeader, cx, Empty, Pill, Progress, Select } from "@/components/ui";
+import { Button, ButtonLink, Callout, Card, CardHeader, Empty, Pill, Progress, Select, cx } from "@/components/ui";
 import { voteRecipients } from "@/lib/client/recipients";
 import { useRoad } from "@/lib/client/road-context";
 import { fmtDate, fmtDateTime } from "@/lib/dates";
@@ -43,7 +43,25 @@ export default function VotePage() {
           ) : undefined
         }
       />
-      {s.status === "passed" && <Callout tone="ok" className="mb-5" title={`Passed ${s.yes} to ${s.no}`}>Recorded on {fmtDateTime(vote.closedAt!)}.</Callout>}
+      {s.status === "passed" && (
+        <Callout
+          tone="ok"
+          className="mb-5"
+          title={`Passed ${s.yes} to ${s.no}`}
+          action={
+            vote.amount && !vote.requestId ? (
+              <ButtonLink href={`/app/money/requests/new?vote=${vote.id}`}>Bill each home its share</ButtonLink>
+            ) : vote.requestId ? (
+              <ButtonLink href={`/app/money/requests/${vote.requestId}`} variant="secondary">
+                See the project bill
+              </ButtonLink>
+            ) : undefined
+          }
+        >
+          Recorded on {fmtDateTime(vote.closedAt!)}.
+          {vote.amount && !vote.requestId ? " Collect each home's share before the work starts, then pay the contractor from it." : ""}
+        </Callout>
+      )}
       {s.status === "failed" && <Callout tone="danger" className="mb-5" title={`Did not pass: ${s.yes} yes, needed ${s.needed}`}>Recorded on {fmtDateTime(vote.closedAt!)}.</Callout>}
       {(s.status === "ready" || (open && s.decided)) && (
         <Callout

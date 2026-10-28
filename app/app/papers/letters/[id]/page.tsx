@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { Copy, Mail, Printer } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { Copy, Mail, Printer, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/app/common";
 import { LetterBody } from "@/components/app/letter-body";
 import { Button, Card, Empty } from "@/components/ui";
@@ -9,10 +9,12 @@ import { useToast } from "@/components/toast";
 import { copyText, mailtoHref } from "@/lib/client/links";
 import { useRoad } from "@/lib/client/road-context";
 import { fmtDate } from "@/lib/dates";
+import { canUpdate, updatedLetter } from "@/lib/letter";
 
 export default function LetterPage() {
   const { id } = useParams<{ id: string }>();
-  const { road } = useRoad();
+  const { road, dispatch, now } = useRoad();
+  const router = useRouter();
   const toast = useToast();
   const letter = road.letters.find((l) => l.id === id);
   if (!letter) return <Card><Empty title="Letter not found" /></Card>;
@@ -44,10 +46,26 @@ export default function LetterPage() {
               <Button variant="ghost" icon={<Copy className="h-5 w-5" aria-hidden />} onClick={async () => (await copyText(verifyUrl)) && toast("Verification link copied.")}>
                 Copy verify link
               </Button>
+              {canUpdate(road, letter, now) && (
+                <Button
+                  variant="secondary"
+                  icon={<RefreshCw className="h-5 w-5" aria-hidden />}
+                  onClick={async () => {
+                    const next = updatedLetter(road, letter, now);
+                    if (await dispatch({ type: "letter.create", letter: next }, `Updated letter ${next.code} issued.`)) router.push(`/app/papers/letters/${next.id}`);
+                  }}
+                >
+                  Issue a free update
+                </Button>
+              )}
             </>
           }
         />
-        <p className="mb-4 text-[0.92rem] text-stone">Print it, then choose &ldquo;Save as PDF&rdquo; to attach it to an email.</p>
+        <p className="mb-4 text-[0.92rem] text-stone">
+          Print it, then choose &ldquo;Save as PDF&rdquo; to attach it to an email.
+          {canUpdate(road, letter, now) && " If the closing moves or a payment comes in, issue one free update within 30 days."}
+          {letter.updateOf && " This is the free update of an earlier letter."}
+        </p>
       </div>
       <div className="rounded-[var(--radius-card)] border border-line bg-white p-6 shadow-card sm:p-10 print:border-0 print:p-0 print:shadow-none">
         <LetterBody letter={letter} />

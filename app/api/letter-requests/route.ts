@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (!found) throw new CommandError("We couldn't find a road with that code.", 404);
     const origin = new URL(req.url).origin;
 
-    // With Stripe on, the requester pays the $75 fee first. The request is
+    // With Stripe on, the requester pays the letter fee first. The request is
     // created when the payment completes (return page or webhook).
     if (usesStripe(found.road)) {
       if (found.road.letterRequests.filter((x) => x.status === "new").length >= 20) {

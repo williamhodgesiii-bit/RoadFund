@@ -1,47 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { CloudSnow, Mail, Phone, Plus } from "lucide-react";
+import { Mail, Phone, Plus } from "lucide-react";
 import { PageHeader, RoadNav } from "@/components/app/common";
-import { Button, Card, CardHeader, Checkbox, Dialog, Empty, Field, Input, Pill, Select, Textarea, Toggle } from "@/components/ui";
+import { Button, Card, Dialog, Empty, Field, Input, Textarea } from "@/components/ui";
 import { useRoad } from "@/lib/client/road-context";
 import { uid } from "@/lib/ids";
 import { money } from "@/lib/money";
-import { contractorTotals } from "@/lib/selectors";
 import type { Contractor } from "@/lib/types";
 
 export default function ContractorsPage() {
-  const { road, dispatch, now } = useRoad();
+  const { road, now } = useRoad();
   const [editing, setEditing] = useState<Contractor | null>(null);
-  const totals = contractorTotals(road, now.getFullYear());
-  const w = road.settings.weather;
+  const year = now.getFullYear();
+  const paidThisYear = (id: string) =>
+    road.expenses.filter((e) => e.contractorId === id && e.status === "paid" && e.paidAt && new Date(e.paidAt).getFullYear() === year).reduce((a, e) => a + e.amount, 0);
 
   return (
     <>
       <PageHeader
         title="Road"
-        sub="Plow, grading and gravel companies, and what the road paid each this year."
+        sub="The people who plow, grade and haul gravel for the road, and what the road paid each this year."
         actions={
-          <Button icon={<Plus className="h-5 w-5" aria-hidden />} onClick={() => setEditing({ id: uid("ctr"), name: "", trade: "", phone: "", email: "", w9OnFile: false, isCorporation: false, notes: "" })}>
+          <Button icon={<Plus className="h-5 w-5" aria-hidden />} onClick={() => setEditing({ id: uid("ctr"), name: "", trade: "", phone: "", email: "", notes: "" })}>
             Add contractor
           </Button>
         }
       />
       <RoadNav />
-      <Card className="mb-6">
+      <Card>
         {road.contractors.length === 0 ? (
           <Empty title="No contractors yet">Add the companies that plow, grade and haul gravel for the road.</Empty>
         ) : (
           <ul className="divide-y divide-line">
             {road.contractors.map((c) => {
-              const t = totals.find((x) => x.id === c.id);
+              const paid = paidThisYear(c.id);
               return (
                 <li key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
                     <p className="font-bold">{c.name}</p>
                     <p className="text-[0.92rem] text-stone">
                       {c.trade}
-                      {t && t.paid > 0 && ` · paid ${money(t.paid)} in ${now.getFullYear()}`}
+                      {paid > 0 && ` · paid ${money(paid)} in ${year}`}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-3 text-[0.92rem]">
                       {c.phone && (
@@ -56,48 +56,14 @@ export default function ContractorsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {t?.needs1099 && <Pill tone="late">1099 needed</Pill>}
-                    {!c.isCorporation && !c.w9OnFile && <Pill tone="warn">No W-9</Pill>}
-                    <Button size="sm" variant="secondary" onClick={() => setEditing(c)}>
-                      Edit
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => setEditing(c)}>
+                    Edit
+                  </Button>
                 </li>
               );
             })}
           </ul>
         )}
-      </Card>
-
-      <Card>
-        <CardHeader title="Snow alerts" icon={<CloudSnow className="h-5 w-5" aria-hidden />} sub="Watches the National Weather Service forecast for the road and flags storms on the Home tab." />
-        <div className="space-y-5 p-5">
-          <Toggle checked={w.enabled} onChange={(v) => dispatch({ type: "road.settings", patch: { weather: { ...w, enabled: v } } })} label="Watch the forecast" />
-          {w.enabled && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Alert when snow is forecast over" htmlFor="snow-in">
-                <Select id="snow-in" value={w.snowInches} onChange={(e) => dispatch({ type: "road.settings", patch: { weather: { ...w, snowInches: Number(e.target.value) } } })}>
-                  {[1, 2, 3, 4, 6].map((n) => (
-                    <option key={n} value={n}>
-                      {n} inch{n === 1 ? "" : "es"}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Plow contractor to text" htmlFor="snow-ctr">
-                <Select id="snow-ctr" value={w.contractorId ?? ""} onChange={(e) => dispatch({ type: "road.settings", patch: { weather: { ...w, contractorId: e.target.value || null } } })}>
-                  <option value="">None</option>
-                  {road.contractors.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-          )}
-        </div>
       </Card>
 
       {editing && <ContractorDialog value={editing} onClose={() => setEditing(null)} />}
@@ -146,8 +112,6 @@ function ContractorDialog({ value, onClose }: { value: Contractor; onClose: () =
             <Input id="c-email" type="email" value={c.email} onChange={(e) => set({ email: e.target.value })} />
           </Field>
         </div>
-        <Checkbox checked={c.w9OnFile} onChange={(v) => set({ w9OnFile: v })} label="W-9 on file" hint="Needed to send a 1099 if the road pays them $2,000 or more in a year." />
-        <Checkbox checked={c.isCorporation} onChange={(v) => set({ isCorporation: v })} label="It's a corporation" hint="Corporations generally don't get a 1099-NEC." />
         <Field label="Notes" optional htmlFor="c-notes">
           <Textarea id="c-notes" rows={2} value={c.notes} onChange={(e) => set({ notes: e.target.value })} />
         </Field>
