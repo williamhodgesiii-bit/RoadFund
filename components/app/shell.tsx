@@ -97,7 +97,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const { road, entry, saving, live, status } = useRoad();
   const banner = road.demo
-    ? "Demo road: try anything. Nothing here is real."
+    ? "Sample road: try anything. Nothing here is real."
     : live
       ? status.stripe === "test"
         ? "Stripe test mode: no real money moves."
@@ -136,7 +136,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
         <div className="space-y-1 border-t border-line p-3">
           {me && (
             <a href={`/n/${road.id}/${me.token}`} target="_blank" rel="noopener" className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold text-charcoal hover:bg-paper-2">
-              <Eye className="h-5 w-5" aria-hidden /> See neighbor view
+              <Eye className="h-5 w-5" aria-hidden /> See what neighbors see
             </a>
           )}
           <Link
@@ -148,7 +148,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
           <Link href="/help#captains" className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold hover:bg-paper-2">
             <CircleHelp className="h-5 w-5" aria-hidden /> Help
           </Link>
-          <p className="px-3 pt-2 text-[0.8rem] text-stone">
+          <p className="px-3 pt-2 text-[0.9rem] text-stone">
             {entry.where === "cloud" ? "Saved to the cloud" : "Saved in this browser"}
           </p>
         </div>
@@ -156,24 +156,22 @@ function Chrome({ children }: { children: React.ReactNode }) {
 
       <div className="min-w-0">
         {/* Mobile top bar */}
-        <header className="no-print sticky top-0 z-40 flex h-14 items-center justify-between gap-2 border-b border-line bg-white/95 px-3 backdrop-blur md:hidden">
+        <header className="no-print sticky top-0 z-40 flex h-16 items-center justify-between gap-2 border-b border-line bg-white px-3 md:hidden">
           <Link href="/app" className="flex min-w-0 items-center gap-2" aria-label="Home">
             <LogoMark className="h-8 w-8 shrink-0" />
             <span className="truncate font-display text-[1.05rem] font-extrabold">{road.name}</span>
           </Link>
-          <div className="flex items-center gap-1">
-            {me && (
-              <a href={`/n/${road.id}/${me.token}`} target="_blank" rel="noopener" className="rounded-lg p-2.5 text-stone hover:bg-paper-2" aria-label="See neighbor view">
-                <Eye className="h-5 w-5" aria-hidden />
-              </a>
-            )}
-            <Link href="/app/settings" className="rounded-lg p-2.5 text-stone hover:bg-paper-2" aria-label="Settings">
-              <Settings className="h-5 w-5" aria-hidden />
+          <div className="flex shrink-0 items-center">
+            <Link href="/help#captains" className="flex min-h-12 flex-col items-center justify-center rounded-lg px-2 text-[0.8rem] font-semibold text-charcoal hover:bg-paper-2">
+              <CircleHelp className="h-5 w-5" aria-hidden /> Help
+            </Link>
+            <Link href="/app/settings" className="flex min-h-12 flex-col items-center justify-center rounded-lg px-2 text-[0.8rem] font-semibold text-charcoal hover:bg-paper-2">
+              <Settings className="h-5 w-5" aria-hidden /> Settings
             </Link>
           </div>
         </header>
         {banner && (
-          <div className="no-print border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.85rem] text-sign-ink">
+          <div className="no-print border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.95rem] text-sign-ink">
             {banner}
             {saving && <span className="ml-2 inline-flex items-center gap-1 font-semibold"><LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden /> Saving</span>}
           </div>
@@ -195,10 +193,15 @@ function Chrome({ children }: { children: React.ReactNode }) {
             const on = t.match(path);
             return (
               <li key={t.href}>
-                <Link href={t.href} aria-current={on ? "page" : undefined} className={cx("flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 text-[0.75rem] font-semibold", on ? "text-pine" : "text-stone")}>
-                  <span className={cx("rounded-full px-3 py-1", on && "bg-pine-50")}>
-                    <t.icon className="h-6 w-6" aria-hidden />
-                  </span>
+                <Link
+                  href={t.href}
+                  aria-current={on ? "page" : undefined}
+                  className={cx(
+                    "flex min-h-16 flex-col items-center justify-center gap-0.5 border-t-4 px-0.5 text-[0.9rem]",
+                    on ? "border-pine font-extrabold text-pine" : "border-transparent font-semibold text-charcoal",
+                  )}
+                >
+                  <t.icon className="h-6 w-6" aria-hidden />
                   {t.short ?? t.label}
                 </Link>
               </li>
@@ -223,7 +226,7 @@ function RoadSwitcher() {
         }} className="flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-left" aria-expanded={open}>
         <span className="min-w-0">
           <span className="block truncate font-bold">{road.name}</span>
-          <span className="block truncate text-[0.82rem] text-stone">
+          <span className="block truncate text-[0.9rem] text-stone">
             {road.homes.length} homes · {road.code}
           </span>
         </span>
@@ -259,13 +262,13 @@ function NoRoad() {
     <main id="main" className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-4 py-10">
       <LogoMark className="h-14 w-14" />
       <h1 className="mt-5 text-[2rem] font-black">No road in this browser yet</h1>
-      <p className="mt-2 text-[1.05rem] text-stone">Set up your road, or try every feature on a demo road with nine homes and a year and a half of history.</p>
+      <p className="mt-2 text-[1.05rem] text-stone">Set up your road, or try every feature on a sample road with nine homes and a year and a half of history.</p>
       <div className="mt-6 grid gap-3">
         <ButtonLink href="/start" size="lg">
           Set up your road
         </ButtonLink>
         <ButtonLink href="/demo" size="lg" variant="secondary">
-          Open the demo road
+          Open the sample road
         </ButtonLink>
       </div>
       <h2 className="mt-10 text-[1.3rem] font-extrabold">Already set up a road on another device?</h2>

@@ -3,182 +3,330 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Banknote, CircleCheck, Hammer, Landmark, ListChecks, PiggyBank, Vote, X } from "lucide-react";
+import { ArrowRight, CircleCheck, X } from "lucide-react";
+import { RecordPaymentDialog } from "@/components/app/money-dialogs";
 import { StatusPill } from "@/components/app/common";
-import { ButtonLink, Card, CardHeader, cx, Empty, Progress } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Button, ButtonLink, cx, Pill, Progress } from "@/components/ui";
+import { buildPayment } from "@/lib/commands";
 import { useRoad } from "@/lib/client/road-context";
-import { fmtDateTime, fmtDay } from "@/lib/dates";
+import { fmtDate, fmtDateTime, fmtDay, isoDate } from "@/lib/dates";
+import { uid } from "@/lib/ids";
 import { money } from "@/lib/money";
-import { accountSummary, captainHome, currentRequest, displayName, dueSoonText, nextActions, requestProgress, upcomingWork, voteState } from "@/lib/selectors";
+import {
+  accountSummary,
+  captainHome,
+  checkInMail,
+  currentRequest,
+  displayName,
+  dueSoonText,
+  isCleared,
+  nextActions,
+  requestProgress,
+  upcomingWork,
+  voteState,
+  type LineProgress,
+} from "@/lib/selectors";
+import type { DuesRequest } from "@/lib/types";
 
 export default function HomePage() {
   const { road, entry, now } = useRoad();
-  const acct = accountSummary(road, now);
   const actions = nextActions(road, now);
-  const [first, ...rest] = actions;
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? actions : actions.slice(0, 3);
   const req = currentRequest(road);
   const prog = req ? requestProgress(road, req, now) : null;
-  const openVote = road.votes.map((v) => voteState(road, v, now)).find((v) => v.status === "open" || v.status === "ready");
-  const upcoming = upcomingWork(road, now).filter((u) => !u.status.startsWith("Vote")).slice(0, 3);
   const me = captainHome(road);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <Welcome demo={entry.demo} roadId={road.id} />
 
       <div>
-        <p className="text-stone">{greeting(now)}{me ? `, ${displayName(me).split(/\s|&/)[0]}` : ""}</p>
-        <h1 className="text-[1.9rem] font-black leading-tight">{road.name}</h1>
+        <p className="text-stone">
+          {greeting(now)}
+          {me ? `, ${displayName(me).split(/\s|&/)[0]}` : ""}
+        </p>
+        <h1 className="text-[2rem] font-black leading-tight">{road.name}</h1>
+        {req && prog && (
+          <p className="mt-2 max-w-2xl text-[1.1rem]">
+            {prog.homesPaid} of {prog.homesBilled} homes have paid {req.title} ({money(prog.collected)} of {money(prog.billed)}).{" "}
+            {req.status === "closed" ? "This bill is closed." : `It ${dueSoonText(req.dueDate, now)}.`}
+          </p>
+        )}
       </div>
 
-      {/* The one big next action */}
-      <Card className={cx("overflow-hidden border-2", first.tone === "late" ? "border-brick/40" : first.tone === "warn" ? "border-sign" : "border-pine/40")}>
-        <div className="p-5 sm:p-6">
-          <p className="text-[0.85rem] font-bold uppercase tracking-wider text-stone">Next up</p>
-          <p className="mt-1 text-[1.35rem] font-extrabold leading-snug">{first.label}</p>
-          <p className="mt-1 text-stone">{first.detail}</p>
-          <ButtonLink href={first.href} size="lg" variant={first.tone === "late" ? "danger" : first.tone === "warn" ? "warn" : "primary"} className="mt-4 w-full sm:w-auto" icon={<ArrowRight className="h-5 w-5" aria-hidden />}>
-            {buttonText(first.id)}
-          </ButtonLink>
-        </div>
-        {rest.length > 0 && (
-          <details className="border-t border-line">
-            <summary className="flex cursor-pointer items-center gap-2 px-5 py-3 font-semibold sm:px-6">
-              <ListChecks className="h-5 w-5 text-pine" aria-hidden /> {rest.length} more to do
-            </summary>
-            <ul className="divide-y divide-line border-t border-line">
-              {rest.map((a) => (
-                <li key={a.id}>
-                  <Link href={a.href} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-paper sm:px-6">
-                    <span>
-                      <span className="block font-semibold">{a.label}</span>
-                      <span className="block text-[0.9rem] text-stone">{a.detail}</span>
-                    </span>
-                    <ArrowRight className="h-5 w-5 shrink-0 text-stone" aria-hidden />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </details>
+      {/* What to do, in plain view */}
+      <section aria-labelledby="todo-h">
+        <h2 id="todo-h" className="text-[1.4rem] font-extrabold">
+          {actions.length ? "To do" : "Nothing to do right now"}
+        </h2>
+        {actions.length > 0 && (
+          <ol className="mt-3 divide-y divide-line rounded-[var(--radius-card)] border border-line bg-white">
+            {shown.map((a, i) => (
+              <li key={a.id} className={cx("flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5", i === 0 && a.tone === "late" && "bg-brick-50/50")}>
+                <div className="min-w-0">
+                  <p className="text-[1.1rem] font-bold leading-snug">{a.label}</p>
+                  <p className="mt-0.5 text-stone">{a.detail}</p>
+                </div>
+                <ButtonLink
+                  href={a.href}
+                  variant={i === 0 ? (a.tone === "late" ? "danger" : "primary") : "secondary"}
+                  className="shrink-0 whitespace-nowrap"
+                  icon={<ArrowRight className="h-5 w-5" aria-hidden />}
+                >
+                  {buttonText(a.id)}
+                </ButtonLink>
+              </li>
+            ))}
+          </ol>
         )}
-      </Card>
+        {actions.length > 3 && (
+          <button onClick={() => setShowAll((s) => !s)} className="mt-2 min-h-12 font-semibold text-pine underline" aria-expanded={showAll}>
+            {showAll ? "Show fewer" : `Show ${actions.length - 3} more`}
+          </button>
+        )}
+      </section>
 
       {!entry.demo && <GettingStarted />}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        {/* Who has paid */}
-        <Card>
-          <CardHeader
-            title={req ? req.title : "Dues"}
-            icon={<Banknote className="h-5 w-5" aria-hidden />}
-            sub={req && prog ? `${prog.homesPaid} of ${prog.homesBilled} homes paid · ${req.status === "closed" ? "closed" : dueSoonText(req.dueDate, now)}` : "No bill yet"}
-            action={
-              req && (
-                <Link href={`/app/money/requests/${req.id}`} className="shrink-0 font-semibold text-pine hover:underline">
-                  Open
-                </Link>
-              )
-            }
-          />
-          {req && prog ? (
-            <div>
-              <div className="px-5 pt-4">
-                <div className="mb-2 flex items-baseline justify-between">
-                  <span className="tnum font-display text-[1.4rem] font-extrabold">{money(prog.collected)}</span>
-                  <span className="tnum text-stone">of {money(prog.billed)}</span>
-                </div>
-                <Progress value={prog.collected} max={prog.billed} label="Dues collected" />
-              </div>
-              <ul className="mt-3 divide-y divide-line">
-                {prog.lines.map((l) => (
-                  <li key={l.home.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold">{displayName(l.home)}</span>
-                      <span className="block text-[0.85rem] text-stone">{l.home.label}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-3">
-                      <span className="tnum hidden text-[0.95rem] sm:inline">{money(l.due)}</span>
-                      <StatusPill status={l.status} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <Empty title="No dues sent yet" action={<ButtonLink href="/app/money/requests/new">Send road dues</ButtonLink>}>
-              Set the budget and send each neighbor their share.
-            </Empty>
+      {/* Who has paid */}
+      <section aria-labelledby="paid-h">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="paid-h" className="text-[1.4rem] font-extrabold">
+            {req ? `Who has paid: ${req.title}` : "Who has paid"}
+          </h2>
+          {req && (
+            <Link href={`/app/money/requests/${req.id}`} className="font-semibold text-pine underline">
+              Open the bill
+            </Link>
           )}
-        </Card>
-
-        <div className="space-y-6">
-          {/* Balance */}
-          <Card>
-            <CardHeader title="Road account" icon={<Landmark className="h-5 w-5" aria-hidden />} sub={road.account.status === "connected" ? `${road.account.bankName} ••${road.account.last4}` : "Not connected"} action={<Link href="/app/money/ledger" className="shrink-0 font-semibold text-pine hover:underline">Payment record</Link>} />
-            <div className="grid grid-cols-2 gap-4 p-5">
-              <div>
-                <p className="text-[0.85rem] font-semibold text-stone">Balance</p>
-                <p className="tnum font-display text-[1.7rem] font-black leading-tight">{money(acct.balance)}</p>
-              </div>
-              <div>
-                <p className="text-[0.85rem] font-semibold text-stone">Available now</p>
-                <p className="tnum font-display text-[1.25rem] font-extrabold leading-tight">{money(acct.available)}</p>
-                {acct.pending > 0 && <p className="text-[0.85rem] text-stone">{money(acct.pending)} still clearing</p>}
-              </div>
-              {road.reserve.setAside > 0 && (
-                <p className="col-span-2 flex items-center gap-2 rounded-lg bg-paper px-3 py-2 text-[0.92rem]">
-                  <PiggyBank className="h-4 w-4 text-pine" aria-hidden /> {money(acct.reserve)} set aside for big repairs
-                </p>
-              )}
-            </div>
-          </Card>
-
-          {/* Next project */}
-          <Card>
-            <CardHeader title="Coming up" icon={<Hammer className="h-5 w-5" aria-hidden />} />
-            <ul className="divide-y divide-line">
-              {openVote && (
-                <li>
-                  <Link href={`/app/papers/votes/${openVote.vote.id}`} className="flex items-start gap-3 px-5 py-3 hover:bg-paper">
-                    <Vote className="mt-0.5 h-5 w-5 shrink-0 text-lake" aria-hidden />
-                    <span className="min-w-0">
-                      <span className="block font-semibold">{openVote.vote.question}</span>
-                      <span className="block text-[0.9rem] text-stone">
-                        {openVote.yes} yes, {openVote.no} no · needs {openVote.needed} yes · {openVote.status === "ready" ? "voting ended" : `ends ${fmtDay(openVote.vote.deadline, now)}`}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              )}
-              {upcoming.map((u) => (
-                <li key={u.title + u.status} className="flex items-start justify-between gap-3 px-5 py-3">
-                  <span>
-                    <span className="block font-semibold">{u.title}</span>
-                    <span className="block text-[0.9rem] text-stone">{u.status}</span>
-                  </span>
-                  {u.amount !== null && <span className="tnum shrink-0 font-semibold">{money(u.amount)}</span>}
-                </li>
-              ))}
-              {!openVote && upcoming.length === 0 && <li className="px-5 py-4 text-stone">Nothing planned. Start a vote when the road needs work.</li>}
-            </ul>
-          </Card>
         </div>
+        {req && prog ? (
+          <>
+            <div className="mt-3 max-w-md">
+              <Progress value={prog.collected} max={prog.billed} label="Dues collected" />
+            </div>
+            <ul className="mt-4 divide-y divide-line rounded-[var(--radius-card)] border border-line bg-white">
+              {prog.lines.map((l) => (
+                <HouseholdRow key={l.home.id} line={l} request={req} />
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div className="mt-3 rounded-[var(--radius-card)] border border-line bg-white p-5">
+            <p>No bill has gone out yet. Set this year&apos;s budget and send each home its share.</p>
+            <ButtonLink href="/app/money/requests/new" className="mt-4">
+              Start this year&apos;s bill
+            </ButtonLink>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-10 lg:grid-cols-2">
+        <RoadMoney />
+        <ComingUp />
       </div>
 
-      <Card>
-        <CardHeader title="Recent activity" sub="Every change is recorded, so anyone can see what happened and when." />
-        <ul className="divide-y divide-line">
-          {road.activity.slice(0, 8).map((a) => (
-            <li key={a.id} className="flex flex-col gap-0.5 px-5 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+      <section aria-labelledby="activity-h">
+        <h2 id="activity-h" className="text-[1.4rem] font-extrabold">
+          Recent activity
+        </h2>
+        <p className="text-stone">Every change is recorded, so anyone can see what happened and when.</p>
+        <ul className="mt-3 divide-y divide-line border-y border-line">
+          {road.activity.slice(0, 6).map((a) => (
+            <li key={a.id} className="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
               <span>{a.text}</span>
-              <span className="shrink-0 text-[0.85rem] text-stone">
+              <span className="shrink-0 text-[0.95rem] text-stone">
                 {a.actor} · {fmtDateTime(a.at)}
               </span>
             </li>
           ))}
         </ul>
-      </Card>
+        <Link href="/app/money/ledger" className="mt-3 inline-block font-semibold text-pine underline">
+          See the full payment record
+        </Link>
+      </section>
     </div>
+  );
+}
+
+/** One home on the current bill, with a two-tap way to record a check that came in. */
+function HouseholdRow({ line: l, request }: { line: LineProgress; request: DuesRequest }) {
+  const { road, now, dispatch } = useRoad();
+  const toast = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const mailed = checkInMail(road, l.home.id, request.id, now);
+  const owes = l.outstanding > 0 && l.status !== "processing";
+  const name = displayName(l.home);
+
+  const record = async () => {
+    setSaving(true);
+    const payment = buildPayment(road, {
+      id: uid("pay"),
+      homeId: l.home.id,
+      requestId: request.id,
+      amount: l.outstanding,
+      method: "check",
+      payerName: name,
+      note: "",
+      recordedBy: "captain",
+      paidAt: new Date().toISOString(),
+    });
+    const ok = await dispatch({ type: "payment.record", payment });
+    setSaving(false);
+    setConfirming(false);
+    if (ok) {
+      toast(`Recorded a ${money(l.outstanding)} check from ${name}.`, "ok", {
+        label: "Undo",
+        onClick: () => void dispatch({ type: "payment.void", paymentId: payment.id, reason: "Recorded by mistake" }, "Removed that check."),
+      });
+    }
+  };
+
+  return (
+    <li className="px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <p className="font-semibold">{name}</p>
+          <p className="text-[0.95rem] text-stone">
+            {l.home.label} · <span className="tnum">{money(l.due)}</span>
+            {l.paid > 0 && l.outstanding > 0 && (
+              <>
+                {" · "}
+                <span className="tnum">{money(l.outstanding)}</span> left
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {mailed && owes ? <Pill tone="info">Check in the mail</Pill> : <StatusPill status={l.status} />}
+          {owes && !confirming && (
+            <Button size="sm" variant="secondary" onClick={() => setConfirming(true)}>
+              Got their check
+            </Button>
+          )}
+        </div>
+      </div>
+      {mailed && owes && !confirming && (
+        <p className="mt-1 text-[0.95rem] text-stone">
+          They said they mailed it on {fmtDate(mailed.at.slice(0, 10))}. Did it arrive?
+        </p>
+      )}
+      {confirming && (
+        <div className="mt-3 rounded-lg bg-paper p-3">
+          <p>
+            Record a <strong className="tnum">{money(l.outstanding)}</strong> check from {name}, received today ({fmtDate(isoDate(now))})?
+            {l.home.email ? " They'll get a receipt by email." : ""}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button loading={saving} onClick={record}>
+              Record the check
+            </Button>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Different amount or date
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+      {editing && (
+        <RecordPaymentDialog
+          open
+          onClose={() => {
+            setEditing(false);
+            setConfirming(false);
+          }}
+          home={l.home}
+          request={request}
+          outstanding={l.outstanding}
+        />
+      )}
+    </li>
+  );
+}
+
+function RoadMoney() {
+  const { road, now } = useRoad();
+  const acct = accountSummary(road, now);
+  const clearing = road.payments.filter((p) => p.status === "ok" && !isCleared(p, now));
+  const clearsBy = clearing.map((p) => p.clearsAt).sort().at(-1);
+  const connected = road.account.status === "connected";
+  return (
+    <section aria-labelledby="money-h">
+      <h2 id="money-h" className="text-[1.4rem] font-extrabold">
+        Road money
+      </h2>
+      <p className="text-stone">{connected ? `${road.account.bankName} ••${road.account.last4} · as of ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "No bank account connected yet. Checks still work."}</p>
+      <dl className="mt-3 divide-y divide-line border-y border-line">
+        <MoneyRow k="In the account" v={money(acct.balance)} big />
+        <MoneyRow k="Ready to spend" v={money(acct.available)} />
+        {acct.pending > 0 && <MoneyRow k={`On its way${clearsBy ? `, clears by ${fmtDate(clearsBy)}` : ""}`} v={money(acct.pending)} />}
+        {road.reserve.setAside > 0 && <MoneyRow k="Set aside for big repairs" v={money(acct.reserve)} />}
+      </dl>
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+        <Link href="/app/money/bills" className="font-semibold text-pine underline">
+          Pay a bill
+        </Link>
+        <Link href="/app/money/ledger" className="font-semibold text-pine underline">
+          Payment record
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function MoneyRow({ k, v, big }: { k: string; v: string; big?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt>{k}</dt>
+      <dd className={cx("tnum font-display font-extrabold", big ? "text-[1.6rem]" : "text-[1.15rem]")}>{v}</dd>
+    </div>
+  );
+}
+
+function ComingUp() {
+  const { road, now } = useRoad();
+  const openVote = road.votes.map((v) => voteState(road, v, now)).find((v) => v.status === "open" || v.status === "ready");
+  const upcoming = upcomingWork(road, now)
+    .filter((u) => !u.status.startsWith("Vote"))
+    .slice(0, 3);
+  return (
+    <section aria-labelledby="coming-h">
+      <h2 id="coming-h" className="text-[1.4rem] font-extrabold">
+        Coming up
+      </h2>
+      <ul className="mt-3 divide-y divide-line border-y border-line">
+        {openVote && (
+          <li className="py-3">
+            <Link href={`/app/papers/votes/${openVote.vote.id}`} className="font-semibold text-pine underline">
+              {openVote.vote.question}
+            </Link>
+            <p className="text-[0.95rem] text-stone">
+              Vote: {openVote.yes} yes, {openVote.no} no. Needs {openVote.needed} yes.{" "}
+              {openVote.status === "ready" ? "Voting has ended." : `Ends ${fmtDay(openVote.vote.deadline, now)}.`}
+            </p>
+          </li>
+        )}
+        {upcoming.map((u) => (
+          <li key={u.title + u.status} className="flex items-start justify-between gap-3 py-3">
+            <span>
+              <span className="block font-semibold">{u.title}</span>
+              <span className="block text-[0.95rem] text-stone">{u.status}</span>
+            </span>
+            {u.amount !== null && <span className="tnum shrink-0 font-semibold">{money(u.amount)}</span>}
+          </li>
+        ))}
+        {!openVote && upcoming.length === 0 && <li className="py-3 text-stone">Nothing planned. Start a vote when the road needs work.</li>}
+      </ul>
+      <Link href="/app/papers?new=vote" className="mt-3 inline-block font-semibold text-pine underline">
+        Start a vote
+      </Link>
+    </section>
   );
 }
 
@@ -189,19 +337,19 @@ function greeting(now: Date): string {
 
 function buttonText(id: string): string {
   if (id === "bank") return "Connect bank account";
-  if (id.startsWith("letter-")) return "Create the letter";
+  if (id.startsWith("letter-")) return "Write the letter";
   if (id === "dues") return "Start this year's bill";
   if (id.startsWith("send-")) return "Send it";
-  if (id.startsWith("bill-")) return "Review the bill";
+  if (id.startsWith("bill-")) return "Look it over";
   if (id.startsWith("pay-")) return "Pay it";
   if (id.startsWith("vote-")) return "Close the vote";
   if (id === "late" || id === "remind") return "Send reminders";
   if (id === "sign") return "Send signing links";
   if (id.startsWith("dmg-")) return "Open the work log";
-  return "Go";
+  return "Open";
 }
 
-/** First-weeks checklist. Hides itself once everything is done, or when dismissed. */
+/** First-weeks list. Only what's needed to collect money; hides once done, or when dismissed. */
 function GettingStarted() {
   const { road, entry, now } = useRoad();
   const key = `rf:checklist:${road.id}`;
@@ -216,44 +364,43 @@ function GettingStarted() {
   const unreachable = road.homes.filter((h) => !h.phone && !h.email).length;
   const year = now.getFullYear();
   const items = [
-    { done: true, label: "Set up the road and its homes", href: "/app/neighbors" },
     {
       done: unreachable === 0,
       label: unreachable ? `Add a phone or email for ${unreachable} home${unreachable === 1 ? "" : "s"}` : "Every home has a phone or email",
       href: "/app/neighbors",
     },
-    ...(entry.where === "cloud" ? [{ done: !!me?.email, label: "Add your email so you can sign in on any device", href: "/app/settings" }] : []),
-    { done: road.account.status === "connected", label: "Connect the road's bank account", href: "/app/money/account" },
     { done: road.requests.some((r) => r.sentAt && new Date(r.createdAt).getFullYear() === year), label: `Send ${year} dues`, href: "/app/money" },
-    { done: road.contractors.length > 0, label: "Add your plow driver and grader", href: "/app/road/contractors" },
+    ...(entry.where === "cloud" ? [{ done: !!me?.email, label: "Add your email so you can sign in on any device", href: "/app/settings" }] : []),
+    { done: road.account.status === "connected", label: "Connect a bank account so neighbors can pay online", href: "/app/money/account" },
     { done: road.agreement.step !== "draft", label: "Read the draft road agreement", href: "/app/papers/agreement" },
   ];
   const done = items.filter((i) => i.done).length;
   if (hidden || done === items.length) return null;
   return (
-    <Card>
-      <CardHeader
-        title="Getting started"
-        icon={<ListChecks className="h-5 w-5" aria-hidden />}
-        sub={`${done} of ${items.length} done`}
-        action={
-          <button
-            onClick={() => {
-              try {
-                localStorage.setItem(key, "hide");
-              } catch {}
-              setHidden(true);
-            }}
-            className="rounded-lg px-2 py-1.5 text-[0.9rem] font-semibold text-stone hover:bg-paper-2"
-          >
-            Hide
-          </button>
-        }
-      />
-      <ul className="divide-y divide-line">
+    <section aria-labelledby="start-h">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="start-h" className="text-[1.4rem] font-extrabold">
+          Getting started
+        </h2>
+        <button
+          onClick={() => {
+            try {
+              localStorage.setItem(key, "hide");
+            } catch {}
+            setHidden(true);
+          }}
+          className="min-h-11 rounded-lg px-2 font-semibold text-stone underline hover:bg-paper-2"
+        >
+          Hide this list
+        </button>
+      </div>
+      <p className="text-stone">
+        {done} of {items.length} done. You can collect checks before any of this is finished.
+      </p>
+      <ul className="mt-3 divide-y divide-line rounded-[var(--radius-card)] border border-line bg-white">
         {items.map((i) => (
           <li key={i.label}>
-            <Link href={i.href} className="flex items-center gap-3 px-5 py-3 hover:bg-paper">
+            <Link href={i.href} className="flex min-h-14 items-center gap-3 px-4 py-3 hover:bg-paper sm:px-5">
               {i.done ? <CircleCheck className="h-6 w-6 shrink-0 text-pine" aria-label="Done" /> : <span className="h-6 w-6 shrink-0 rounded-full border-2 border-field" aria-label="Not done" />}
               <span className={cx("flex-1", i.done && "text-stone line-through decoration-stone/50")}>{i.label}</span>
               {!i.done && <ArrowRight className="h-5 w-5 shrink-0 text-stone" aria-hidden />}
@@ -261,7 +408,7 @@ function GettingStarted() {
           </li>
         ))}
       </ul>
-    </Card>
+    </section>
   );
 }
 
@@ -283,41 +430,35 @@ function Welcome({ demo, roadId }: { demo: boolean; roadId: string }) {
     setShow(false);
   };
   return (
-    <div className="relative rounded-[var(--radius-card)] bg-charcoal p-5 text-white sm:p-6">
-      <button onClick={dismiss} className="absolute right-3 top-3 rounded-lg p-2 opacity-80 hover:bg-white/10 hover:opacity-100" aria-label="Dismiss">
-        <X className="h-5 w-5" aria-hidden />
+    <section className="relative rounded-[var(--radius-card)] border-2 border-sign bg-sign-50 p-5 sm:p-6">
+      <button onClick={dismiss} className="absolute right-2 top-2 flex min-h-11 items-center gap-1 rounded-lg px-2 font-semibold text-charcoal hover:bg-white/60">
+        <X className="h-5 w-5" aria-hidden /> Close
       </button>
       {demo ? (
         <>
-          <p className="sign-chip inline-block rounded px-2 py-0.5 text-[0.8rem] font-bold">Demo road</p>
-          <h2 className="mt-2 text-[1.35rem] font-extrabold">You&apos;re Carol Jensen, captain of Birch Hollow Lane.</h2>
-          <p className="mt-1 opacity-90">Nine homes, real history, nothing real at stake. Things to try:</p>
-          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+          <h2 className="pr-20 text-[1.3rem] font-extrabold">This is a sample road. You&apos;re Carol Jensen, the road captain.</h2>
+          <p className="mt-1">Nine homes and a year and a half of history. Nothing here is real, so try anything. A few places to start:</p>
+          <ul className="mt-3 list-disc space-y-1.5 pl-6">
             {[
-              ["A title company is waiting on a Road Status Letter.", "/app/papers/letters"],
-              ["Pay as a neighbor: open Lot 6's link and pay by bank.", "/app/neighbors"],
-              ["Approve and pay the plow contractor's bill.", "/app/money/bills"],
-              ["Check who still needs to sign the agreement.", "/app/papers/agreement"],
-              ["See how the culvert vote is going.", "/app/papers"],
-              ["Look at what each home paid this year.", "/app/money/ledger"],
-            ].map(([t, href], i) => (
+              ["A title company is waiting on a Road Status Letter", "/app/papers/letters"],
+              ["Pay as a neighbor: open Lot 6's page and pay", "/app/neighbors"],
+              ["Approve and pay the plow contractor's bill", "/app/money/bills"],
+              ["See who still needs to sign the road agreement", "/app/papers/agreement"],
+            ].map(([t, href]) => (
               <li key={href}>
-                <Link href={href} className="flex items-start gap-2 rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15">
-                  <span className="font-display font-black text-sign">{i + 1}</span>
-                  <span>{t}</span>
+                <Link href={href} className="font-semibold text-pine underline">
+                  {t}
                 </Link>
               </li>
             ))}
-          </ol>
+          </ul>
         </>
       ) : (
         <>
-          <p className="flex items-center gap-2 text-[1.2rem] font-extrabold">
-            <CircleCheck className="h-6 w-6 text-sign" aria-hidden /> Your road is set up.
-          </p>
-          <p className="mt-1 opacity-90">Next: send this year&apos;s dues if you haven&apos;t, and add the people who plow and grade the road.</p>
+          <h2 className="pr-20 text-[1.3rem] font-extrabold">Your road is set up.</h2>
+          <p className="mt-1">Next, send this year&apos;s bill if you haven&apos;t. Neighbors can pay by check right away; online payments start once you connect a bank account.</p>
         </>
       )}
-    </div>
+    </section>
   );
 }

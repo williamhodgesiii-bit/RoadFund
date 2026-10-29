@@ -75,7 +75,7 @@ test("custom split must total 100%", () => {
   assert.deepEqual(r.lines.map((l) => l.amount), [6_000, 4_000]);
 });
 
-test("fees: payer covers fees so the road nets the full share", () => {
+test("fees: payer covers the bank fee so the road nets the full share", () => {
   const ach = computeCharge(30_000, "ach", true);
   assert.equal(ach.roadNet, 30_000);
   assert.equal(ach.total, ach.share + ach.platformFee + ach.processingFee);
@@ -83,7 +83,8 @@ test("fees: payer covers fees so the road nets the full share", () => {
   const big = computeCharge(2_000_000, "ach", true);
   assert.equal(big.processingFee, 500, "ACH cap is $5");
   const card = computeCharge(30_000, "card", true);
-  assert.equal(card.processingFee, Math.round(card.total * 0.029) + 30);
+  assert.equal(card.total, 30_000, "card fees are never passed to the payer");
+  assert.equal(card.roadNet, 30_000 - 100 - (870 + 30));
   const absorbed = computeCharge(30_000, "ach", false);
   assert.equal(absorbed.total, 30_000);
   assert.equal(absorbed.roadNet, 30_000 - 100 - 240);

@@ -55,6 +55,9 @@ export function SendSheet({
   const [serverSent, setServerSent] = useState<Set<string>>(() => new Set());
   const [failed, setFailed] = useState<{ homeId: string; name: string; error: string }[]>([]);
   const [sending, setSending] = useState(false);
+  // Two steps: check the message and who gets it, then send.
+  const [step, setStep] = useState<"check" | "send">("check");
+  const [editing, setEditing] = useState(false);
   // The first message from Road Fund shouldn't be the first a neighbor hears of it.
   const firstTime = road.messages.length === 0 && kind !== "reminder" && kind !== "friendly";
   const [told, setTold] = useState(!firstTime);
@@ -148,6 +151,101 @@ export function SendSheet({
     ].join("\n\n");
 
   const touchedCount = Object.keys(touched).length;
+  const howFor = (r: Recipient): string => {
+    if (server) return reach(r) === "text" ? "Text from Road Fund" : reach(r) === "email" ? "Email from Road Fund" : "You send it, or print a letter";
+    return r.smsOptIn && r.phone ? "Text (test mode)" : "You send it, or print a letter";
+  };
+
+  if (step === "check") {
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title="Check before you send"
+        wide
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            {auto.length > 0 ? (
+              <Button
+                loading={sending}
+                disabled={!told}
+                icon={<Send className="h-5 w-5" aria-hidden />}
+                onClick={async () => {
+                  await sendAuto();
+                  setStep("send");
+                }}
+              >
+                Send to {auto.length} home{auto.length === 1 ? "" : "s"}
+              </Button>
+            ) : (
+              <Button disabled={!told} onClick={() => setStep("send")}>
+                Next: send it yourself
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-6">
+          <p className="text-[1.05rem] font-semibold">{heading}</p>
+          {firstTime && (
+            <Callout tone="warn" title="First, tell your neighbors it's coming">
+              <p>People are warned not to tap links in texts they weren&apos;t expecting. Before the first message, hand out or mail a short letter from you, or mention it in person.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button size="sm" variant="secondary" icon={<Printer className="h-4 w-4" aria-hidden />} onClick={() => printLetters(recipients, introLetter, false)}>
+                  Print a letter for each home
+                </Button>
+              </div>
+              <div className="mt-3">
+                <Checkbox checked={told} onChange={setTold} label="My neighbors know a message from me through Road Fund is coming" />
+              </div>
+            </Callout>
+          )}
+
+          <section>
+            <h3 className="font-bold">What {sample?.name ?? "each neighbor"} will get</h3>
+            {sample && <p className="mt-2 whitespace-pre-line rounded-lg border border-line bg-paper p-4">{sampleText}</p>}
+            <p className="mt-1.5 text-[0.95rem] text-stone">
+              Each home gets its own name, amount and link{len.segments > 1 ? `. As a text, it's ${len.segments} messages long` : ""}.
+            </p>
+            {editing ? (
+              <div className="mt-3">
+                <label htmlFor="send-template" className="mb-1.5 block font-semibold">
+                  Change the wording
+                </label>
+                <Textarea id="send-template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={4} />
+                <p className="mt-1.5 text-[0.95rem] text-stone">Leave the words in braces, like {"{amount}"}, as they are. They fill in for each neighbor.</p>
+              </div>
+            ) : (
+              <button onClick={() => setEditing(true)} className="mt-2 min-h-11 font-semibold text-pine underline">
+                Change the wording
+              </button>
+            )}
+          </section>
+
+          <section>
+            <h3 className="font-bold">
+              Who gets it ({recipients.length} home{recipients.length === 1 ? "" : "s"})
+            </h3>
+            <ul className="mt-2 divide-y divide-line border-y border-line">
+              {recipients.map((r) => (
+                <li key={r.homeId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
+                  <span>
+                    <span className="font-semibold">{r.name}</span>
+                    {r.values.amount && <span className="tnum text-stone"> · {r.values.amount}</span>}
+                  </span>
+                  <span className="text-[0.95rem] text-stone">{howFor(r)}</span>
+                </li>
+              ))}
+            </ul>
+            {!server && auto.length > 0 && <p className="mt-2 text-[0.95rem] text-stone">{road.demo ? "Sample road: nothing is actually sent." : "Test mode: nothing is actually sent."}</p>}
+          </section>
+        </div>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog
@@ -167,42 +265,8 @@ export function SendSheet({
       }
     >
       <div className="space-y-5">
-        {firstTime && (
-          <Callout tone="warn" title="First, tell your neighbors it's coming">
-            <p>People are warned not to tap links in texts they weren&apos;t expecting. Before the first message, hand out or mail a short letter from you, or mention it in person.</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button size="sm" variant="secondary" icon={<Printer className="h-4 w-4" aria-hidden />} onClick={() => printLetters(recipients, introLetter, false)}>
-                Print a letter for each home
-              </Button>
-            </div>
-            <div className="mt-3">
-              <Checkbox checked={told} onChange={setTold} label="My neighbors know a message from me through Road Fund is coming" />
-            </div>
-          </Callout>
-        )}
-
-        <div>
-          <label htmlFor="send-template" className="mb-1.5 block font-semibold">
-            Message
-          </label>
-          <Textarea id="send-template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={4} />
-          <p className="mt-1.5 text-[0.9rem] text-stone">
-            Words in braces fill in for each neighbor: their name, amount, due date and link. Here is how it reads for {sample?.name ?? "a neighbor"}
-            {len.segments > 1 ? ` (${len.segments} text messages long)` : ""}:
-          </p>
-          {sample && <p className="mt-2 rounded-xl bg-paper p-3 text-[0.98rem]">{sampleText}</p>}
-        </div>
-
-        {auto.length > 0 && server && (
-          <Callout
-            tone="ok"
-            title={`Road Fund can send this to ${auto.length} neighbor${auto.length === 1 ? "" : "s"} for you`}
-            action={
-              <Button size="sm" loading={sending} icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={!told || auto.every((a) => serverSent.has(a.homeId))}>
-                {auto.every((a) => serverSent.has(a.homeId)) ? "Sent" : `Send to ${auto.length} now`}
-              </Button>
-            }
-          >
+        {auto.length > 0 && server && serverSent.size > 0 && (
+          <Callout tone="ok" title={`Sent to ${serverSent.size} home${serverSent.size === 1 ? "" : "s"}`}>
             {[byText ? `${byText} by text` : null, auto.length - byText ? `${auto.length - byText} by email` : null].filter(Boolean).join(", ")}.{" "}
             {byText ? <>Each text ends with &ldquo;{SMS_FOOTER}&rdquo; </> : null}
             Emails come from {road.name} through Road Fund, and replies come to you.
@@ -220,24 +284,18 @@ export function SendSheet({
             Use the buttons below to send them yourself.
           </Callout>
         )}
-        {auto.length > 0 && !server && (
-          <Callout
-            tone="ok"
-            title={`${auto.length} neighbor${auto.length === 1 ? "" : "s"} agreed to texts`}
-            action={
-              <Button size="sm" icon={<Send className="h-4 w-4" aria-hidden />} onClick={sendAuto} disabled={!told || auto.every((a) => touched[a.homeId])}>
-                {auto.every((a) => touched[a.homeId]) ? "Sent" : `Text all ${auto.length} now`}
-              </Button>
-            }
-          >
-            Road Fund texts them with &ldquo;{SMS_FOOTER}&rdquo; added. {road.demo ? "Demo road: nothing is actually sent." : "Test mode: nothing is actually sent."}
+        {auto.length > 0 && !server && auto.every((a) => touched[a.homeId]) && (
+          <Callout tone="ok" title={`Texted ${auto.length} home${auto.length === 1 ? "" : "s"}`}>
+            Road Fund added &ldquo;{SMS_FOOTER}&rdquo; to each text. {road.demo ? "Sample road: nothing is actually sent." : "Test mode: nothing is actually sent."}
           </Callout>
         )}
 
         <div>
-          <p className="font-semibold">{auto.length ? "Everyone else: send it yourself" : "Send it to each neighbor"}</p>
-          <p className="text-[0.95rem] text-stone">Text and Email open your own phone&apos;s apps with the message filled in. You press send. Letter prints a page to hand out or mail.</p>
-          <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+          <p className="font-semibold">{auto.length ? (manual.length ? "Everyone else: send it yourself" : "Everyone has it") : "Send it to each neighbor"}</p>
+          {(auto.length ? manual : recipients).length > 0 && (
+            <p className="text-[0.95rem] text-stone">Text and Email open your own phone&apos;s apps with the message filled in. You press send. Letter prints a page to hand out or mail.</p>
+          )}
+          <ul className={cx("mt-3 divide-y divide-line rounded-lg border border-line", !(auto.length ? manual : recipients).length && "hidden")}>
             {(auto.length ? manual : recipients).map((r) => {
               const body = bodyFor(r);
               const t = touched[r.homeId];

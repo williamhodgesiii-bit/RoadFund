@@ -56,7 +56,8 @@ export function baseValues(road: Road, home: Home, link: string): Record<string,
   const cap = road.homes.find((h) => h.id === road.captainHomeId) ?? null;
   const capName = cap ? (cap.owners.split(" & ")[0] || cap.label).trim() : "your road captain";
   return {
-    first: firstName(home.owners || home.label),
+    // Greet by name only when we have one; "Hi Lot" reads like a mistake.
+    first: firstName(home.owners),
     road: road.name,
     captain: firstName(capName),
     captainFull: capName,
@@ -105,7 +106,8 @@ export function noticeLetter(n: NoticeInput): { subject: string; body: string } 
   const agreementLine = inForce
     ? `Under our road maintenance agreement, a late fee of ${money(a.terms.lateFee)} applies after ${a.terms.graceDays} days.`
     : "";
-  const pay = `You can pay online at ${n.link}${cap?.address ? `, or by check, mailed or dropped off at ${cap.address}` : ", or by check given to me"}.`;
+  const payee = road.settings.checkPayee?.trim() || cap?.owners || road.name;
+  const pay = `You can pay online at ${n.link}, or by check made out to ${payee}${cap?.address ? `, mailed or dropped off at ${cap.address}` : " and given to me"}.`;
   const call = cap?.phone ? `If you think this is a mistake, or you need to pay over time, please call me at ${cap.phone}. We can set up a payment plan.` : "If you think this is a mistake, or you need to pay over time, please let me know. We can set up a payment plan.";
   const dated = n.date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const to = `${home.owners || home.label}\n${home.address || home.label}`;

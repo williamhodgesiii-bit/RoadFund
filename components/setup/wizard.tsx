@@ -9,12 +9,10 @@ import {
   ArrowRight,
   Camera,
   Check,
-  Landmark,
   MapPin,
   Plus,
   Route,
   Search,
-  ShieldCheck,
   Trash2,
   Undo2,
   X,
@@ -25,7 +23,7 @@ import { RoadStrip } from "@/components/road-strip";
 import { CALC_KEY, type CalcDraft } from "@/components/share-calculator";
 import { useToast } from "@/components/toast";
 import { Button, Callout, Card, Checkbox, Choice, cx, Field, Input, Select, Textarea } from "@/components/ui";
-import { ai, createRoad, getStatus, type Status } from "@/lib/client/backend";
+import { ai, createRoad, getStatus } from "@/lib/client/backend";
 import { blobToBase64 } from "@/lib/client/files";
 import { shrinkImage } from "@/lib/client/image";
 import { applyAll, type Command } from "@/lib/commands";
@@ -76,13 +74,14 @@ interface Draft {
   message: string;
 }
 
+// The bank account isn't a step: checks work right away, and Stripe's identity
+// questions are easier to face after the road is set up. It's on the home page to-do list.
 const STEPS = [
   { title: "Find your road", minutes: 2 },
-  { title: "Confirm the homes", minutes: 3 },
-  { title: "Pick how to split costs", minutes: 1 },
-  { title: "Connect the road's bank account", minutes: 2 },
+  { title: "List the homes", minutes: 3 },
   { title: "This year's budget", minutes: 1 },
-  { title: "Send the first bill", minutes: 1 },
+  { title: "How to split it", minutes: 1 },
+  { title: "Check and send", minutes: 1 },
 ];
 
 function blankHome(n: number): DraftHome {
@@ -137,7 +136,11 @@ function restoreDraft(): { draft: Draft; fromCalculator: boolean } {
       };
     }
     const saved = localStorage.getItem(DRAFT_KEY);
-    if (saved) return { fromCalculator: false, draft: { ...initialDraft(), ...(JSON.parse(saved) as Draft) } };
+    if (saved) {
+      const draft = { ...initialDraft(), ...(JSON.parse(saved) as Draft) };
+      // Drafts saved before the steps changed may point past the end.
+      return { fromCalculator: false, draft: { ...draft, step: Math.min(draft.step, STEPS.length) } };
+    }
   } catch {}
   return { fromCalculator: false, draft: initialDraft() };
 }
@@ -150,10 +153,6 @@ export function SetupWizard() {
   const [d, setD] = useState<Draft>(restored.draft);
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
-  const [liveSetup, setLiveSetup] = useState(false);
-  useEffect(() => {
-    getStatus().then((st) => setLiveSetup(!!st.stripe && st.cloud));
-  }, []);
   const top = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -187,9 +186,9 @@ export function SetupWizard() {
       if (blank.length) e.push("Every home needs a name or address.");
       if (!d.meId) e.push("Mark which home is yours.");
     }
-    if (step === 3 && !shares.ok) e.push(...shares.problems);
-    if (step === 5 && budgetTotal <= 0) e.push("Add at least one budget line.");
-    if (step === 6) {
+    if (step === 3 && budgetTotal <= 0) e.push("Add at least one budget line.");
+    if (step === 4 && !shares.ok) e.push(...shares.problems);
+    if (step === 5) {
       if (!d.title.trim()) e.push("Give the request a title.");
       if (!d.dueDate) e.push("Pick a due date.");
     }
@@ -207,13 +206,13 @@ export function SetupWizard() {
       }
     }
     setErrors([]);
-    if (step === 5 && d.budget.length === 0) set({ step, budget: suggestedBudget(lengthFt, d.surface) });
+    if (step === 3 && d.budget.length === 0) set({ step, budget: suggestedBudget(lengthFt, d.surface) });
     else set({ step });
     requestAnimationFrame(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const finish = async (sendNow: boolean) => {
-    for (let s = 1; s <= 6; s++) {
+    for (let s = 1; s <= STEPS.length; s++) {
       const e = validate(s);
       if (e.length) {
         setErrors(e);
@@ -272,24 +271,32 @@ export function SetupWizard() {
           </Link>
         </div>
         <div className="mx-auto max-w-3xl px-4 pb-3">
-          <div className="flex items-center justify-between text-[0.9rem]">
+          <div className="flex items-center justify-between gap-3">
             <span className="font-semibold">
-              Step {d.step} of 6 · {STEPS[d.step - 1].title}
+              Step {d.step} of {STEPS.length}
             </span>
             <span className="text-stone">About {minutesLeft} min left</span>
           </div>
-          <ol className="mt-2 grid grid-cols-6 gap-1.5" aria-label="Setup steps">
-            {STEPS.map((s, i) => (
-              <li key={s.title}>
-                <button
-                  type="button"
-                  onClick={() => i + 1 < d.step && go(i + 1)}
-                  disabled={i + 1 >= d.step}
-                  className={cx("block h-2 w-full rounded-full", i + 1 < d.step ? "bg-pine" : i + 1 === d.step ? "bg-sign" : "bg-line")}
-                  aria-label={`Step ${i + 1}: ${s.title}${i + 1 < d.step ? " (done, go back)" : ""}`}
-                />
-              </li>
-            ))}
+          <ol className="mt-2 hidden grid-cols-5 gap-2 sm:grid" aria-label="Setup steps">
+            {STEPS.map((s, i) => {
+              const n = i + 1;
+              return (
+                <li key={s.title}>
+                  <button
+                    type="button"
+                    onClick={() => n < d.step && go(n)}
+                    disabled={n >= d.step}
+                    aria-current={n === d.step ? "step" : undefined}
+                    className={cx(
+                      "block w-full border-t-4 pt-1.5 text-left text-[0.9rem] leading-tight disabled:cursor-default",
+                      n < d.step ? "border-pine text-pine underline" : n === d.step ? "border-sign font-bold text-charcoal" : "border-line text-stone",
+                    )}
+                  >
+                    {s.title}
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         </div>
       </header>
@@ -309,31 +316,30 @@ export function SetupWizard() {
         <div className="mt-6">
           {d.step === 1 && <StepRoad d={d} set={set} pathLen={pathLen} />}
           {d.step === 2 && <StepHomes d={d} set={set} />}
-          {d.step === 3 && <StepSplit d={d} set={set} shares={shares} budgetTotal={budgetTotal} lengthFt={lengthFt} goHomes={() => go(2)} />}
-          {d.step === 4 && <StepBank d={d} set={set} />}
-          {d.step === 5 && <StepBudget d={d} set={set} lengthFt={lengthFt} shares={shares} />}
-          {d.step === 6 && <StepSend d={d} set={set} shares={shares} budgetTotal={budgetTotal} />}
+          {d.step === 3 && <StepBudget d={d} set={set} lengthFt={lengthFt} />}
+          {d.step === 4 && <StepSplit d={d} set={set} shares={shares} budgetTotal={budgetTotal} lengthFt={lengthFt} goHomes={() => go(2)} />}
+          {d.step === 5 && <StepSend d={d} set={set} shares={shares} budgetTotal={budgetTotal} />}
         </div>
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
           {d.step > 1 && (
-            <Button variant="secondary" onClick={() => go(d.step - 1)} icon={<ArrowLeft className="h-5 w-5" aria-hidden />} aria-label="Back">
-              <span className="hidden sm:inline">Back</span>
+            <Button variant="secondary" size="lg" onClick={() => go(d.step - 1)} icon={<ArrowLeft className="h-5 w-5" aria-hidden />}>
+              Back
             </Button>
           )}
-          {d.step < 6 ? (
+          {d.step < STEPS.length ? (
             <Button className="flex-1" size="lg" onClick={() => go(d.step + 1)} icon={<ArrowRight className="h-5 w-5" aria-hidden />}>
-              {d.step === 4 && !d.bank.connected && !liveSetup ? "Skip for now" : "Continue"}
+              Next: {STEPS[d.step].title.replace(/^This/, "this").replace(/^How/, "how").replace(/^List/, "list").replace(/^Check/, "check")}
             </Button>
           ) : (
             <div className="flex flex-1 flex-col gap-2 sm:flex-row">
               <Button className="flex-1" size="lg" loading={creating} onClick={() => finish(true)}>
-                Create road and send
+                Save and send the bill
               </Button>
               <Button variant="ghost" onClick={() => finish(false)} disabled={creating}>
-                Send later
+                Save, send later
               </Button>
             </div>
           )}
@@ -698,8 +704,7 @@ function StepSplit({ d, set, shares, budgetTotal, lengthFt, goHomes }: StepProps
       ) : (
         <Card>
           <div className="border-b border-line px-5 py-3">
-            <p className="font-bold">{budgetTotal ? `Shares of ${money(budgetTotal)}` : "Example: shares of a $3,000 year"}</p>
-            <p className="text-[0.9rem] text-stone">You&apos;ll set the real budget in step 5.</p>
+            <p className="font-bold">{budgetTotal ? `Each home's share of ${money(budgetTotal)}` : "Example: shares of a $3,000 year"}</p>
           </div>
           {(d.split.method === "segment" || d.split.method === "distance") && shares.stretches.length > 0 && (
             <div className="border-b border-line px-5 py-4">
@@ -723,93 +728,7 @@ function StepSplit({ d, set, shares, budgetTotal, lengthFt, goHomes }: StepProps
   );
 }
 
-function StepBank({ d, set }: StepProps) {
-  const [connecting, setConnecting] = useState(false);
-  const [status, setStatus] = useState<Status | null>(null);
-  useEffect(() => {
-    getStatus().then(setStatus);
-  }, []);
-  const live = !!status?.stripe && status.cloud;
-  const me = d.homes.find((h) => h.id === d.meId);
-  const emailField = me && status?.cloud && (
-    <Card className="p-5">
-      <Field
-        label="Your email"
-        htmlFor="wz-cap-email"
-        hint="Road Fund sends you payment alerts and letter requests here, and a sign-in link if you change phones. Neighbors don't see it unless you share it."
-      >
-        <Input id="wz-cap-email" type="email" autoComplete="email" value={me.email} onChange={(e) => set({ homes: d.homes.map((h) => (h.id === me.id ? { ...h, email: e.target.value } : h)) })} />
-      </Field>
-    </Card>
-  );
-  if (live) {
-    return (
-      <div className="space-y-6">
-        <p className="text-[1.05rem]">
-          Neighbors&apos; online payments go to the bank account you connect: the road&apos;s own, or yours if the road doesn&apos;t have one. Road Fund never holds the money.
-          Stripe, the payment company, sets up the connection
-          and checks the details.
-        </p>
-        <Callout tone="info" title="You'll do this right after setup">
-          It takes about 10 minutes on Stripe&apos;s site. Have the account and routing numbers for the bank account you&apos;ll use, and the road&apos;s tax ID (EIN) if it has one. You&apos;ll
-          find it under Money, then Bank account.
-        </Callout>
-        {emailField}
-        <p className="text-stone">Until it&apos;s connected, neighbors can still see their share and pay you by check, and you record it.</p>
-      </div>
-    );
-  }
-  const connect = () => {
-    setConnecting(true);
-    window.setTimeout(() => {
-      set({ bank: { connected: true, bankName: "Test Bank", last4: "6789" } });
-      setConnecting(false);
-    }, 900);
-  };
-  return (
-    <div className="space-y-6">
-      <p className="text-[1.05rem]">
-        Neighbors&apos; online payments go to the bank account you connect: the road&apos;s own, or yours if it doesn&apos;t have one. Road Fund never holds the money. Stripe handles the account and checks the
-        details; you&apos;ll need the road group&apos;s name, your name as the representative, and the bank account the road uses.
-      </p>
-      {d.bank.connected ? (
-        <Callout tone="ok" title={`Connected: ${d.bank.bankName} ••${d.bank.last4}`} action={<Button size="sm" variant="ghost" onClick={() => set({ bank: { connected: false, bankName: "", last4: "" } })}>Disconnect</Button>}>
-          Online payments are on. Bank payments settle in about 4 business days, cards in about 2.
-        </Callout>
-      ) : (
-        <Card className="p-5">
-          <div className="flex items-center gap-3">
-            <span className="rounded-xl bg-pine-50 p-2.5 text-pine">
-              <Landmark className="h-6 w-6" aria-hidden />
-            </span>
-            <div>
-              <p className="font-bold">{d.name || "Your road"} road account</p>
-              <p className="text-[0.92rem] text-stone">Stripe Connect · test mode</p>
-            </div>
-          </div>
-          <dl className="mt-4 grid gap-3 rounded-xl bg-paper p-4 text-[0.95rem] sm:grid-cols-2">
-            <div>
-              <dt className="text-stone">Routing number</dt>
-              <dd className="tnum font-semibold">110000000</dd>
-            </div>
-            <div>
-              <dt className="text-stone">Account number</dt>
-              <dd className="tnum font-semibold">000123456789</dd>
-            </div>
-          </dl>
-          <p className="mt-3 text-[0.92rem] text-stone">These are Stripe&apos;s public test numbers. No real account is connected and no money moves.</p>
-          <Button className="mt-4" block loading={connecting} onClick={connect} icon={<ShieldCheck className="h-5 w-5" aria-hidden />}>
-            Connect test account
-          </Button>
-        </Card>
-      )}
-      {emailField}
-      <p className="text-stone">You can skip this. Neighbors can still see their share and pay you by check, and you record it.</p>
-    </div>
-  );
-}
-
-function StepBudget({ d, set, lengthFt, shares }: StepProps & { lengthFt: number; shares: ReturnType<typeof computeShares> }) {
+function StepBudget({ d, set, lengthFt }: StepProps & { lengthFt: number }) {
   const toast = useToast();
   const [reading, setReading] = useState(false);
   const [aiOn, setAiOn] = useState(false);
@@ -880,11 +799,7 @@ function StepBudget({ d, set, lengthFt, shares }: StepProps & { lengthFt: number
           <span className="font-bold">This year&apos;s total</span>
           <span className="tnum font-display text-[1.6rem] font-black">{money(total)}</span>
         </div>
-        {shares.ok && total > 0 && (
-          <p className="mt-1 text-stone">
-            {d.split.method === "equal" ? `About ${money(Math.round(total / homes))} per home` : `From ${money(Math.min(...computeShares(total, d.homes.map((h) => ({ ...h, customPct: null })), d.split).lines.map((l) => l.amount)))} to ${money(Math.max(...computeShares(total, d.homes.map((h) => ({ ...h, customPct: null })), d.split).lines.map((l) => l.amount)))} per home`}
-          </p>
-        )}
+        {total > 0 && <p className="mt-1 text-stone">About {money(Math.round(total / homes))} per home if split equally. You&apos;ll choose how to split it next.</p>}
       </Card>
     </div>
   );
@@ -892,6 +807,10 @@ function StepBudget({ d, set, lengthFt, shares }: StepProps & { lengthFt: number
 
 function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnType<typeof computeShares>; budgetTotal: number }) {
   const me = d.homes.find((h) => h.id === d.meId);
+  const [cloud, setCloud] = useState(false);
+  useEffect(() => {
+    getStatus().then((st) => setCloud(st.cloud));
+  }, []);
   const final = computeShares(budgetTotal, d.homes.map((h) => ({ ...h, customPct: null })), d.split);
   const sample = final.lines[0];
   const preview =
@@ -917,7 +836,7 @@ function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnT
           <Input id="w-due" type="date" value={d.dueDate} min={isoDate()} onChange={(e) => set({ dueDate: e.target.value })} />
         </Field>
       </div>
-      <Field label="Message" hint="Each neighbor's name, amount and link are filled in automatically. Edit it on the next screen if you want." htmlFor="w-msg">
+      <Field label="Message" hint="Each neighbor's name, amount and link are filled in for them. You'll see who gets it, and can change the wording, before anything is sent." htmlFor="w-msg">
         <Textarea id="w-msg" value={preview} readOnly rows={5} className="bg-paper" />
       </Field>
       <Card>
@@ -930,7 +849,7 @@ function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnT
             ["Homes", `${d.homes.length} (${d.homes.filter((h) => h.vacant).length} vacant)`],
             ["Split", `${METHOD_INFO[d.split.method].name}${d.split.basePct && d.split.method !== "equal" ? `, ${d.split.basePct}% base share` : ""}`],
             ["Total", money(budgetTotal)],
-            ["Bank account", d.bank.connected ? `${d.bank.bankName} ••${d.bank.last4}` : "Not connected; checks only for now"],
+            ["Ways to pay", d.bank.connected ? "Bank, card or check" : "Check for now. Connect a bank account after setup to take online payments."],
             ["Due", d.dueDate ? fmtDate(d.dueDate) : "—"],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 px-5 py-2.5">
@@ -940,6 +859,15 @@ function StepSend({ d, set, shares, budgetTotal }: StepProps & { shares: ReturnT
           ))}
         </dl>
       </Card>
+      {me && cloud && (
+        <Field
+          label="Your email"
+          htmlFor="wz-cap-email"
+          hint="Road Fund tells you here when someone pays or a title company asks for a letter, and sends a sign-in link if you change phones. Neighbors don't see it unless you share it."
+        >
+          <Input id="wz-cap-email" type="email" autoComplete="email" value={me.email} onChange={(e) => set({ homes: d.homes.map((h) => (h.id === me.id ? { ...h, email: e.target.value } : h)) })} />
+        </Field>
+      )}
       {!shares.ok && <Callout tone="danger">{shares.problems.join(" ")}</Callout>}
       <p className="text-stone">The free plan covers one bill a year. You can upgrade later from Settings.</p>
     </div>

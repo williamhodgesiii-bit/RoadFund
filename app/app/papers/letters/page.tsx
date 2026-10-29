@@ -35,7 +35,7 @@ export default function LettersPage() {
       <Card className="mb-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[0.85rem] font-semibold uppercase tracking-wide text-stone">Your road code</p>
+            <p className="font-semibold text-stone">Your road code</p>
             <p className="font-mono text-[1.6rem] font-bold">{road.code}</p>
             <p className="text-stone">Give it to a seller&apos;s title company. They request letters at /closing and you see them here.</p>
           </div>

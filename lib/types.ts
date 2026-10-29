@@ -367,6 +367,8 @@ export interface RoadSettings {
   reminderDays: number[];
   /** Send reminders automatically on reminderDays (relative to the due date). Default on. */
   autoReminders?: boolean;
+  /** The name checks are made out to: whoever's bank account they go into. Blank means the captain. */
+  checkPayee?: string;
 }
 
 export interface Account {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Plus, Vote } from "lucide-react";
 import { PageHeader, PapersNav, PlanGate } from "@/components/app/common";
@@ -15,7 +15,7 @@ import type { Vote as VoteT, VoteKind } from "@/lib/types";
 
 export default function VotesPage() {
   const { road, now } = useRoad();
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(useSearchParams().get("new") === "vote");
   const states = road.votes.map((v) => voteState(road, v, now));
   const open = states.filter((s) => s.status === "open" || s.status === "ready");
   const past = states.filter((s) => s.status === "passed" || s.status === "failed");

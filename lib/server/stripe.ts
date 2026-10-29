@@ -3,7 +3,7 @@ import "server-only";
 import Stripe from "stripe";
 import { buildPayment, CommandError } from "../commands.ts";
 import { addDays, isoDate } from "../dates.ts";
-import { computeCharge } from "../fees.ts";
+import { computeCharge, payerPaysFee } from "../fees.ts";
 import { AGREEMENT_PACKAGE, LETTER_FEE, planPrice } from "../pricing.ts";
 import type { Home, Plan, Road } from "../types.ts";
 import { kvEnabled } from "./kv.ts";
@@ -132,7 +132,7 @@ export async function duesCheckout(input: {
           unit_amount: charge.total,
           product_data: {
             name: `${input.requestTitle}: ${home.label}`,
-            description: road.settings.payerCoversFees ? `Your share of ${road.name} road costs, plus a $1 Road Fund fee and processing.` : `Your share of ${road.name} road costs.`,
+            description: payerPaysFee(input.method, road.settings.payerCoversFees) ? `Your share of ${road.name} road costs, plus a $1 Road Fund fee and the bank fee.` : `Your share of ${road.name} road costs.`,
           },
         },
       },

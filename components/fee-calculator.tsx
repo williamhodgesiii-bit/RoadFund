@@ -18,7 +18,12 @@ export function FeeCalculator() {
         <Field label="A neighbor's share" htmlFor="fee-share">
           <Input id="fee-share" inputMode="decimal" prefix="$" value={text} onChange={(e) => setText(e.target.value)} />
         </Field>
-        <Toggle checked={payerCovers} onChange={setPayerCovers} label="Neighbor covers the fees" hint={payerCovers ? "The road gets the full share." : "The road absorbs the fees."} />
+        <Toggle
+          checked={payerCovers}
+          onChange={setPayerCovers}
+          label="Neighbor covers the bank fee"
+          hint={payerCovers ? "Bank payments reach the road in full. Card fees are always the road's." : "The road pays every fee."}
+        />
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {[

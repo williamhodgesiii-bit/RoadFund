@@ -290,16 +290,6 @@ export function nextActions(road: Road, now: Date): NextAction[] {
   const today = isoDate(now);
   const year = now.getFullYear();
 
-  if (road.account.status !== "connected") {
-    out.push({
-      id: "bank",
-      label: "Connect the road's bank account",
-      detail: "Neighbors can't pay online until the road has its own account.",
-      href: "/app/money/account",
-      tone: "go",
-    });
-  }
-
   for (const r of road.letterRequests.filter((x) => x.status === "new")) {
     out.push({
       id: `letter-${r.id}`,
@@ -385,6 +375,17 @@ export function nextActions(road: Road, now: Date): NextAction[] {
 
   for (const w of road.work.filter((x) => x.kind === "damage" && x.status === "open").slice(0, 2)) {
     out.push({ id: `dmg-${w.id}`, label: `Plan a repair: ${w.title}`, detail: "Reported damage that isn't scheduled yet.", href: `/app/road/work#${w.id}`, tone: "calm" });
+  }
+
+  // Checks work without a bank account, so this comes after everything that's waiting on someone.
+  if (road.account.status !== "connected") {
+    out.push({
+      id: "bank",
+      label: "Connect a bank account for online payments",
+      detail: "Until then, neighbors can still pay you by check.",
+      href: "/app/money/account",
+      tone: "go",
+    });
   }
 
   if (out.length === 0) {

@@ -10,17 +10,17 @@ import { stateName } from "@/lib/states";
 import type { StatusLetter } from "@/lib/types";
 
 
-export function LetterBody({ letter, draft = false }: { letter: StatusLetter; draft?: boolean }) {
+export function LetterBody({ letter, draft = false, sample = false }: { letter: StatusLetter; draft?: boolean; sample?: boolean }) {
   const s = letter.snapshot;
   const [qr, setQr] = useState<string>("");
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   useEffect(() => {
-    if (!draft) QRCode.toString(`${window.location.origin}/verify/${letter.code}`, { type: "svg", margin: 0, color: { dark: "#1E2320", light: "#FFFFFF" } }).then(setQr).catch(() => {});
-  }, [letter.code, draft]);
+    if (!draft && !sample) QRCode.toString(`${window.location.origin}/verify/${letter.code}`, { type: "svg", margin: 0, color: { dark: "#1E2320", light: "#FFFFFF" } }).then(setQr).catch(() => {});
+  }, [letter.code, draft, sample]);
   const d = s.propertyDues;
 
   return (
-    <article className="text-[0.98rem] leading-relaxed">
+    <article className="font-serif text-[0.98rem] leading-relaxed">
       <header className="flex items-start justify-between gap-6 border-b-2 border-charcoal pb-4">
         <div>
           <p className="text-[0.8rem] font-bold uppercase tracking-[0.15em] text-stone">Road Status Letter</p>
@@ -30,7 +30,9 @@ export function LetterBody({ letter, draft = false }: { letter: StatusLetter; dr
           </p>
         </div>
         <div className="shrink-0 text-right">
-          {draft ? (
+          {sample ? (
+            <p className="-rotate-6 border-4 border-double border-brick px-3 py-1 font-sans text-[1.1rem] font-black tracking-widest text-brick">SAMPLE</p>
+          ) : draft ? (
             <p className="rounded-md bg-sign-50 px-2 py-1 text-[0.85rem] font-bold text-sign-ink">Preview</p>
           ) : (
             <>
@@ -117,7 +119,7 @@ export function LetterBody({ letter, draft = false }: { letter: StatusLetter; dr
           {s.captain.phone && ` · ${s.captain.phone}`}
           {s.captain.email && ` · ${s.captain.email}`}
         </p>
-        {!draft && origin && (
+        {!draft && !sample && origin && (
           <p className="mt-1">
             Verify this letter at <span className="font-mono">{origin}/verify/{letter.code}</span>
           </p>

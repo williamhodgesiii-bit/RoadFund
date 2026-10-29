@@ -15,10 +15,9 @@ export const metadata: Metadata = {
 export default function ClosingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
-      <p className="sign-chip inline-block rounded-md px-3 py-1 text-[0.9rem] font-bold">Title · Lenders · Agents · Closing attorneys</p>
-      <h1 className="mt-4 max-w-3xl text-[2.4rem] font-black leading-tight">Clear the private road condition before it stalls the closing</h1>
-      <p className="mt-4 max-w-3xl text-[1.1rem] text-stone">
-        When a home sits on a private road, the buyer&apos;s lender may ask who maintains the road and who pays. Roads on Road Fund can answer in minutes with a dated,
+      <h1 className="max-w-3xl text-[2.4rem] font-black leading-tight">Road Status Letters for homes on private roads</h1>
+      <p className="mt-4 max-w-3xl text-[1.1rem]">
+        For title companies, lenders, agents and closing attorneys. When a home sits on a private road, the buyer&apos;s lender may ask who maintains the road and who pays. Roads on Road Fund can answer in minutes with a dated,
         verifiable Road Status Letter, and can get a recorded maintenance agreement without chasing every signature by hand.
       </p>
 

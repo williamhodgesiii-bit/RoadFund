@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: Params) {
     const found = await loadRoad(id);
     if (!found) throw new CommandError("Road not found.", 404);
     const road = found.road;
-    if (road.demo) throw new CommandError("The demo road doesn't send real messages.", 409);
+    if (road.demo) throw new CommandError("The sample road doesn't send real messages.", 409);
 
     const body = await readJSON<Body>(req, 100_000);
     const template = String(body.template ?? "").trim();

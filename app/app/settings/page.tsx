@@ -173,7 +173,7 @@ export default function SettingsPage() {
             />
             {!canSend && (
               <p className="rounded-xl bg-paper p-3 text-[0.92rem] text-stone">
-                {road.demo ? "The demo road never sends real messages." : "Reminders go out once email or texting is set up for this site. Until then, send them yourself from the dues page."}
+                {road.demo ? "The sample road never sends real messages." : "Reminders go out once email or texting is set up for this site. Until then, send them yourself from the dues page."}
               </p>
             )}
           </div>
@@ -306,7 +306,7 @@ export default function SettingsPage() {
             </Button>
             {entry.demo && (
               <Button variant="ghost" onClick={() => router.push("/demo?fresh=1")}>
-                Reset the demo road
+                Reset the sample road
               </Button>
             )}
           </div>

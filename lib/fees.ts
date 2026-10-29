@@ -24,15 +24,20 @@ function processingOn(amount: number, method: OnlineMethod): number {
   return Math.round(amount * CARD_RATE) + CARD_FIXED;
 }
 
+/** True when the payer is charged the fee for this method. Card fees are never passed on. */
+export function payerPaysFee(method: OnlineMethod, payerCoversFees: boolean): boolean {
+  return payerCoversFees && method === "ach";
+}
+
 /**
- * When the payer covers fees, the charge is grossed up so the road receives the
- * full share after processing. When the road absorbs fees, the payer pays the
- * share and the fees come out of what the road receives.
+ * When the payer covers the bank fee, a checking-account charge is grossed up so the
+ * road receives the full share. Card fees always come out of what the road receives:
+ * card rules forbid surcharging debit cards and several states restrict surcharges.
  */
 export function computeCharge(share: number, method: OnlineMethod, payerCoversFees: boolean): Charge {
   if (share <= 0) return { share: 0, platformFee: 0, processingFee: 0, total: 0, roadNet: 0 };
 
-  if (!payerCoversFees) {
+  if (!payerPaysFee(method, payerCoversFees)) {
     const processingFee = processingOn(share, method);
     return {
       share,
@@ -44,14 +49,9 @@ export function computeCharge(share: number, method: OnlineMethod, payerCoversFe
   }
 
   const base = share + PLATFORM_FEE;
-  let total: number;
-  if (method === "ach") {
-    const capped = base + ACH_CAP;
-    // If the uncapped fee would exceed the cap, the cap applies.
-    total = Math.round(capped * ACH_RATE) >= ACH_CAP ? capped : Math.ceil(base / (1 - ACH_RATE));
-  } else {
-    total = Math.ceil((base + CARD_FIXED) / (1 - CARD_RATE));
-  }
+  const capped = base + ACH_CAP;
+  // If the uncapped fee would exceed the cap, the cap applies.
+  const total = Math.round(capped * ACH_RATE) >= ACH_CAP ? capped : Math.ceil(base / (1 - ACH_RATE));
   // Settle any rounding gap so total - fees === share exactly.
   const processingFee = total - base;
   return { share, platformFee: PLATFORM_FEE, processingFee, total, roadNet: share };

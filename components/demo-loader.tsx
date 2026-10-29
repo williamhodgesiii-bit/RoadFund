@@ -30,7 +30,7 @@ export function DemoLoader() {
         await createRoad(buildDemoRoad(new Date()), { demo: true });
         router.replace("/app?welcome=demo");
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't build the demo road.");
+        setError(e instanceof Error ? e.message : "Couldn't build the sample road.");
       }
     })();
   }, [router]);

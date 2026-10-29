@@ -20,6 +20,8 @@ export interface NeighborView {
     /** The demo road: payments there are always simulated. */
     demo: boolean;
     settings: Pick<RoadSettings, "payerCoversFees">;
+    /** Who checks are made out to. */
+    checkPayee: string;
     split: SplitSettings;
   };
   me: Pick<Home, "id" | "label" | "address" | "owners" | "phone" | "email" | "smsOptIn" | "emailOptIn" | "distanceFt" | "frontageFt" | "vacant">;
@@ -98,6 +100,7 @@ export function neighborView(road: Road, homeId: string, now: Date): NeighborVie
       demo: !!road.demo,
       plan: road.plan,
       settings: { payerCoversFees: road.settings.payerCoversFees },
+      checkPayee: road.settings.checkPayee?.trim() || (cap ? displayName(cap) : road.name),
       split: road.split,
     },
     me: {

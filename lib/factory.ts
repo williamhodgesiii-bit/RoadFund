@@ -134,7 +134,7 @@ export function createRoad(input: NewRoadInput, at: ISOTime = new Date().toISOSt
     budget: suggestedBudget(input.lengthFt, input.surface),
     account: { status: "none", bankName: "", last4: "", connectedAt: null, openingBalance: 0, openingDate: null },
     settings: {
-      payerCoversFees: true,
+      payerCoversFees: false,
       showPaidNames: false,
       reminderDays: [-3, 7, 21],
     },

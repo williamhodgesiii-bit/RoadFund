@@ -12,11 +12,11 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "warn" | "dark";
 type Size = "sm" | "md" | "lg";
 
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-pine text-white hover:bg-pine-dark shadow-card",
+  primary: "bg-pine text-white hover:bg-pine-dark",
   secondary: "bg-white text-pine border-2 border-pine/80 hover:bg-pine-50",
   ghost: "text-pine hover:bg-pine-50",
   danger: "bg-brick text-white hover:bg-[#9a2019]",
-  warn: "bg-sign text-charcoal hover:bg-[#e09d00] shadow-card",
+  warn: "bg-sign text-charcoal hover:bg-[#e09d00]",
   dark: "bg-charcoal text-white hover:bg-black",
 };
 const SIZE: Record<Size, string> = {
@@ -37,7 +37,7 @@ interface BtnBase {
 
 function btnClass({ variant = "primary", size = "md", block, className }: BtnBase) {
   return cx(
-    "inline-flex select-none items-center justify-center rounded-xl font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+    "inline-flex select-none items-center justify-center rounded-lg font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55",
     VARIANT[variant],
     SIZE[size],
     block && "w-full",
@@ -68,7 +68,7 @@ export function ButtonLink({ href, variant, size, block, icon, className, childr
 
 export function Card({ className, children, as: As = "div", ...rest }: { className?: string; children: ReactNode; as?: "div" | "section" | "article" | "li" } & Omit<ComponentProps<"div">, "className">) {
   return (
-    <As className={cx("rounded-[var(--radius-card)] border border-line bg-white shadow-card", className)} {...(rest as object)}>
+    <As className={cx("rounded-[var(--radius-card)] border border-line bg-white", className)} {...(rest as object)}>
       {children}
     </As>
   );
@@ -104,7 +104,7 @@ const PILL: Record<Tone, string> = {
 /** Status pill. Always text plus an icon, never color alone. */
 export function Pill({ tone, children, icon, className }: { tone: Tone; children: ReactNode; icon?: ReactNode; className?: string }) {
   return (
-    <span className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.85rem] font-semibold", PILL[tone], className)}>
+    <span className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.9rem] font-semibold", PILL[tone], className)}>
       {icon}
       {children}
     </span>
@@ -147,7 +147,7 @@ export function Field({
 }
 
 const inputBase =
-  "w-full min-h-12 rounded-xl border-2 border-field bg-white px-3.5 py-2 text-base text-charcoal placeholder:text-[#8a8579] focus:border-lake focus:outline-none disabled:bg-paper-2";
+  "w-full min-h-12 rounded-lg border-2 border-field bg-white px-3.5 py-2 text-base text-charcoal placeholder:text-[#8a8579] focus:border-lake focus:outline-none disabled:bg-paper-2";
 
 export const Input = forwardRef<HTMLInputElement, ComponentProps<"input"> & { prefix?: string; suffix?: string }>(function Input(
   { className, prefix, suffix, ...rest },
@@ -244,7 +244,7 @@ export function Choice<T extends string>({
           <label
             key={o.value}
             className={cx(
-              "flex cursor-pointer items-start gap-3 rounded-xl border-2 bg-white p-3.5 transition-colors",
+              "flex min-h-14 cursor-pointer items-start gap-3 rounded-lg border-2 bg-white p-3.5 transition-colors",
               on ? "border-pine bg-pine-50/60" : "border-line hover:border-field",
             )}
           >
@@ -273,7 +273,7 @@ const CALLOUT = {
 export function Callout({ tone = "info", title, children, action, className }: { tone?: keyof typeof CALLOUT; title?: ReactNode; children?: ReactNode; action?: ReactNode; className?: string }) {
   const c = CALLOUT[tone];
   return (
-    <div className={cx("flex gap-3 rounded-xl border px-4 py-3.5", c.cls, className)}>
+    <div className={cx("flex gap-3 rounded-lg border px-4 py-3.5", c.cls, className)}>
       <span className="mt-0.5 shrink-0">{c.icon}</span>
       <div className="min-w-0 flex-1">
         {title && <p className="font-semibold">{title}</p>}
@@ -297,9 +297,9 @@ export function Progress({ value, max, tone = "pine", label }: { value: number; 
 export function Stat({ label, value, sub, tone }: { label: ReactNode; value: ReactNode; sub?: ReactNode; tone?: "late" | "ok" }) {
   return (
     <div>
-      <p className="text-[0.88rem] font-semibold uppercase tracking-wide text-stone">{label}</p>
+      <p className="text-[0.95rem] font-semibold text-stone">{label}</p>
       <p className={cx("tnum mt-0.5 font-display text-[1.6rem] font-extrabold leading-tight", tone === "late" && "text-brick", tone === "ok" && "text-pine")}>{value}</p>
-      {sub && <p className="text-[0.9rem] text-stone">{sub}</p>}
+      {sub && <p className="text-[0.95rem] text-stone">{sub}</p>}
     </div>
   );
 }

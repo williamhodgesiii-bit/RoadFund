@@ -86,7 +86,7 @@ export function buildDemoRoad(now: Date = new Date()): Road {
 
   cap(405, { type: "road.plan", plan: "roadfund" });
   cap(405, { type: "account.connect", bankName: "Test Bank", last4: "6789" });
-  cap(405, { type: "account.opening", amount: 340_000, date: day(405) });
+  cap(405, { type: "account.opening", amount: 360_000, date: day(405) });
   cap(405, { type: "road.split", split: { method: "segment", vacantWeight: 0.5, basePct: 50 } });
   for (const c of contractors) cap(404, { type: "contractor.save", contractor: c });
 

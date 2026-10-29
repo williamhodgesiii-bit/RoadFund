@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { COMPANY, phoneText, telHref } from "@/lib/company";
 import { money } from "@/lib/money";
 import { LETTER_FEE, PLAN_LARGE, PLAN_SMALL } from "@/lib/pricing";
 
@@ -8,21 +9,20 @@ export const metadata: Metadata = {
   description: "Answers for neighbors paying road dues, road captains running the road, and title companies requesting letters.",
 };
 
-const SUPPORT = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 const $ = (c: number) => money(c).replace(".00", "");
 
 export default function HelpPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
       <h1 className="text-[2.4rem] font-black leading-tight">Help</h1>
-      <p className="mt-3 text-[1.1rem] text-stone">Questions about your own road, like what it costs or when the plow comes, go to your road captain. Their name and number are on your road page.</p>
+      <p className="mt-3 text-[1.1rem]">Questions about your own road, like what it costs or when the plow comes, go to your road captain. Their name and number are on your road page.</p>
       <nav aria-label="Help sections" className="mt-6 flex flex-wrap gap-2">
         {[
           ["#neighbors", "I live on the road"],
           ["#captains", "I'm the road captain"],
           ["#closing", "I work in real estate"],
         ].map(([href, label]) => (
-          <a key={href} href={href} className="rounded-xl border-2 border-line bg-white px-4 py-2.5 font-semibold hover:border-field">
+          <a key={href} href={href} className="inline-flex min-h-12 items-center rounded-lg border-2 border-line bg-white px-4 font-semibold hover:border-field">
             {label}
           </a>
         ))}
@@ -94,7 +94,8 @@ export default function HelpPage() {
         </Q>
         <Q q="What does it cost?">
           Free for one bill a year. The Road Fund plan is {$(PLAN_SMALL)} a year for roads with up to 8 homes and {$(PLAN_LARGE)} for 9 to 30, usually paid from dues. Each
-          online payment has a $1 fee plus the bank or card charge, which the neighbor or the road covers, your choice. Checks are free. See{" "}
+          online payment has a $1 fee plus the bank or card charge. For checking-account payments, you choose whether the neighbor or the road covers it. Card fees
+          always come out of the road&apos;s side. Checks are free. See{" "}
           <Link href="/pricing" className="font-semibold text-lake underline">pricing</Link>.
         </Q>
         <Q q="Before the work starts, can everyone pay their part?">
@@ -114,14 +115,31 @@ export default function HelpPage() {
         </Q>
       </Section>
 
-      {SUPPORT && (
-        <p className="mt-12 rounded-xl bg-paper-2 px-4 py-3">
-          Still stuck? Email{" "}
-          <a href={`mailto:${SUPPORT}`} className="font-semibold text-lake underline">
-            {SUPPORT}
-          </a>
-          . A person answers, usually within one business day.
-        </p>
+      {(COMPANY.phone || COMPANY.email) && (
+        <section className="mt-12 border-t-2 border-charcoal pt-6">
+          <h2 className="text-[1.5rem] font-black">Still stuck?</h2>
+          <p className="mt-2">
+            {COMPANY.phone && (
+              <>
+                Call{" "}
+                <a href={telHref(COMPANY.phone)} className="tnum font-semibold text-lake underline">
+                  {phoneText(COMPANY.phone)}
+                </a>
+                {COMPANY.hours && ` (${COMPANY.hours})`}
+                {COMPANY.email ? ", or email " : "."}
+              </>
+            )}
+            {COMPANY.email && (
+              <>
+                {!COMPANY.phone && "Email "}
+                <a href={`mailto:${COMPANY.email}`} className="font-semibold text-lake underline">
+                  {COMPANY.email}
+                </a>
+                . A person answers, usually within one business day.
+              </>
+            )}
+          </p>
+        </section>
       )}
     </div>
   );
@@ -138,14 +156,9 @@ function Section({ id, title, children }: { id: string; title: string; children:
 
 function Q({ q, children }: { q: string; children: React.ReactNode }) {
   return (
-    <details className="group py-4">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[1.1rem] font-bold">
-        {q}
-        <span className="text-pine transition-transform group-open:rotate-45" aria-hidden>
-          +
-        </span>
-      </summary>
-      <div className="mt-2 text-stone">{children}</div>
-    </details>
+    <div className="py-5">
+      <h3 className="text-[1.15rem] font-bold">{q}</h3>
+      <div className="mt-1.5">{children}</div>
+    </div>
   );
 }

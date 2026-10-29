@@ -29,9 +29,9 @@ const SOURCES: [string, string][] = [
 export default function GuidePage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
-      <p className="sign-chip inline-block rounded-md px-3 py-1 text-[0.9rem] font-bold">Checked October 2026</p>
-      <h1 className="mt-4 text-[2.4rem] font-black leading-tight">Private road law guide</h1>
-      <p className="mt-4 text-[1.1rem] text-stone">
+      <h1 className="text-[2.4rem] font-black leading-tight">Private road law guide</h1>
+      <p className="mt-2 font-semibold text-stone">Last checked October 2026</p>
+      <p className="mt-4 text-[1.1rem]">
         What lenders actually ask for, which states have a road-sharing law, and what a good road agreement says. Plain English, with links to the rules.
       </p>
       <Callout tone="info" className="mt-6" title="Not legal advice">

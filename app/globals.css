@@ -3,7 +3,7 @@
 /*
   Road Fund palette (contrast checked against WCAG AA):
   white on pine 7.7:1 · charcoal on paper 14.5:1 · charcoal on yellow 7.9:1
-  white on brick 6.5:1 · lake on white 6.9:1 · stone on paper 5.8:1 · field border on white 4.0:1
+  white on brick 6.5:1 · lake on white 6.9:1 · stone on paper 7.6:1 · field border on white 4.0:1
 */
 @theme {
   --color-pine: #1f5e3b;
@@ -20,14 +20,14 @@
   --color-brick-50: #f9e5e3;
   --color-lake: #2f5d8a;
   --color-lake-50: #e5edf5;
-  --color-stone: #5c6159;
+  --color-stone: #4a4f48;
   --color-line: #dcd8ce;
   --color-field: #857f72;
 
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-heading), var(--font-body), ui-sans-serif, system-ui, sans-serif;
 
-  --radius-card: 0.875rem;
+  --radius-card: 0.5rem;
   --shadow-card: 0 1px 2px rgb(30 35 32 / 0.06), 0 1px 1px rgb(30 35 32 / 0.04);
   --shadow-lift: 0 10px 30px -12px rgb(30 35 32 / 0.25);
 
@@ -88,22 +88,6 @@ p { text-wrap: pretty; }
 dialog::backdrop { background: rgb(30 35 32 / 0.5); }
 dialog[open] { animation: rise 0.2s ease-out both; }
 
-/* Road-sign style label: yellow diamond-inspired chip */
-.sign-chip {
-  background: var(--color-sign);
-  color: var(--color-charcoal);
-}
-
-/* Subtle gravel texture for hero bands */
-.gravel {
-  background-color: var(--color-paper);
-  background-image:
-    radial-gradient(circle at 20% 30%, rgb(30 35 32 / 0.035) 1px, transparent 1.5px),
-    radial-gradient(circle at 70% 60%, rgb(30 35 32 / 0.03) 1px, transparent 1.5px),
-    radial-gradient(circle at 40% 80%, rgb(30 35 32 / 0.025) 1.2px, transparent 1.6px);
-  background-size: 22px 22px, 31px 31px, 27px 27px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -112,6 +96,11 @@ dialog[open] { animation: rise 0.2s ease-out both; }
   body { background: #fff; }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
+  /* "Print a slip" prints only the check slip. */
+  html[data-print="slip"] body * { visibility: hidden; }
+  html[data-print="slip"] .check-slip,
+  html[data-print="slip"] .check-slip * { visibility: visible; }
+  html[data-print="slip"] .check-slip { position: absolute; inset: 0 0 auto 0; }
   @page { margin: 0.6in; }
 }
 .print-only { display: none; }

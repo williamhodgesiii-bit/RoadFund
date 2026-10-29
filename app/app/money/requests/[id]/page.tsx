@@ -109,7 +109,7 @@ export default function RequestPage() {
       <Card className="mb-6 p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[0.85rem] font-semibold uppercase tracking-wide text-stone">Collected</p>
+            <p className="font-semibold text-stone">Collected</p>
             <p className="tnum font-display text-[2rem] font-black leading-tight">
               {money(prog.collected)} <span className="text-[1.1rem] font-bold text-stone">of {money(prog.billed)}</span>
             </p>

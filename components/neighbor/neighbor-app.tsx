@@ -10,7 +10,6 @@ import {
   Clock,
   CreditCard,
   FileSignature,
-  House,
   Landmark,
   LoaderCircle,
   Mail,
@@ -19,7 +18,6 @@ import {
   Printer,
   Receipt as ReceiptIcon,
   ShieldCheck,
-  Wallet,
 } from "lucide-react";
 import { AskAgreement } from "@/components/app/ask-agreement";
 import { StoredFileThumb } from "@/components/app/common";
@@ -52,16 +50,26 @@ function parseHash(h: string): Screen {
   return { name: "home" };
 }
 
-export function NeighborApp({ roadId, token }: { roadId: string; token: string }) {
+export function NeighborApp({
+  roadId,
+  token,
+  initial,
+  initialStatus,
+  returning,
+}: {
+  roadId: string;
+  token: string;
+  initial: NeighborView | null;
+  initialStatus: Status | null;
+  returning: boolean;
+}) {
   const toast = useToast();
-  const [view, setView] = useState<NeighborView | null>(null);
-  const [where, setWhere] = useState<"local" | "cloud">("local");
+  const [view, setView] = useState<NeighborView | null>(initial);
+  const [where, setWhere] = useState<"local" | "cloud">(initial ? "cloud" : "local");
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<Status>(OFFLINE_STATUS);
-  // Coming back from Stripe Checkout (?paid=...). Only shown once the page has loaded, so server and browser markup still match.
-  const [returned, setReturned] = useState<{ payment: Payment | null; checking: boolean } | null>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("paid") ? { payment: null, checking: true } : null,
-  );
+  const [status, setStatus] = useState<Status>(initialStatus ?? OFFLINE_STATUS);
+  // Coming back from Stripe Checkout (?paid=...): the server saw the same address, so both render this.
+  const [returned, setReturned] = useState<{ payment: Payment | null; checking: boolean } | null>(returning ? { payment: null, checking: true } : null);
   const hash = useHash();
   const screen = useMemo(() => parseHash(hash), [hash]);
 
@@ -78,8 +86,8 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
   );
 
   useEffect(() => {
-    getStatus().then(setStatus);
-  }, []);
+    if (!initialStatus) getStatus().then(setStatus);
+  }, [initialStatus]);
 
   // Back from Stripe Checkout: confirm the payment and show the thank-you screen.
   useEffect(() => {
@@ -110,12 +118,13 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
   }, [roadId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    load();
+    // A server-rendered page already has the bill; don't fetch it twice on a slow connection.
+    if (!initial) load();
     // Neighbors often switch to their banking app and back; refresh when they return.
     const onVisible = () => document.visibilityState === "visible" && load();
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [load]);
+  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (hash: string) => {
     window.location.hash = hash;
@@ -152,34 +161,34 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
     );
   }
 
-  const first = (view.me.owners || view.me.label).split(/\s|&/)[0];
-  const owed = view.bills.reduce((a, b) => a + b.line.outstanding, 0);
+  const first = view.me.owners.trim().split(/\s|&/)[0];
   const live = paysForReal(status, view.road) && where === "cloud";
   const banner = view.road.demo
-    ? "Demo road: nothing here is real."
+    ? "Sample road: nothing here is real."
     : live
       ? status.stripe === "test"
         ? "Stripe test mode: no real money moves. Test card 4242 4242 4242 4242."
         : null
       : "Test mode: no real money moves.";
+  const title =
+    screen.name === "home" ? (first ? `Hi ${first}` : "Your road page") : screen.name === "pay" ? "Pay your share" : screen.name === "agreement" ? "Road agreement" : screen.name === "receipt" ? "Receipt" : "Your settings";
 
   return (
-    <div className="min-h-dvh pb-24">
-      <header className="bg-pine text-white">
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 pb-5 pt-5">
-          <div className="min-w-0">
-            <p className="truncate text-[0.82rem] font-semibold uppercase tracking-wider opacity-85">{view.road.name}</p>
-            <p className="truncate font-display text-[1.4rem] font-extrabold">{screen.name === "home" ? `Hi ${first}` : screen.name === "pay" ? "Pay your share" : screen.name === "agreement" ? "Road agreement" : screen.name === "receipt" ? "Receipt" : "Your settings"}</p>
-          </div>
-          <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-[0.85rem] font-semibold">{view.me.label}</span>
+    <div className="min-h-dvh pb-10">
+      <header className="no-print bg-pine text-white">
+        <div className="mx-auto max-w-xl px-4 pb-5 pt-4">
+          <p className="truncate text-[1rem] opacity-90">
+            {view.road.name} · {view.me.label}
+          </p>
+          <h1 className="mt-0.5 truncate font-display text-[1.6rem] font-extrabold">{title}</h1>
         </div>
       </header>
-      {banner && <div className="border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.82rem] text-sign-ink">{banner}</div>}
+      {banner && <div className="no-print border-b border-sign/50 bg-sign-50 px-4 py-1.5 text-center text-[0.95rem] text-sign-ink">{banner}</div>}
 
       <main id="main" className="mx-auto max-w-xl space-y-5 px-4 pt-5">
         {screen.name !== "home" && !returned && (
-          <button onClick={() => go("")} className="inline-flex items-center gap-1.5 font-semibold text-pine">
-            <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+          <button onClick={() => go("")} className="no-print inline-flex min-h-12 items-center gap-1.5 font-semibold text-pine">
+            <ArrowLeft className="h-5 w-5" aria-hidden /> Back to your page
           </button>
         )}
         {returned ? (
@@ -194,25 +203,6 @@ export function NeighborApp({ roadId, token }: { roadId: string; token: string }
         {screen.name === "receipt" && <ReceiptScreen view={view} id={screen.id} />}
         {screen.name === "settings" && <SettingsScreen view={view} send={send} />}
       </main>
-
-      <nav aria-label="Your road" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
-        <ul className="mx-auto grid max-w-xl grid-cols-2">
-          <li>
-            <button onClick={() => go("")} aria-current={screen.name === "home" ? "page" : undefined} className={cx("flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[0.8rem] font-semibold", screen.name === "home" ? "text-pine" : "text-stone")}>
-              <House className="h-6 w-6" aria-hidden /> Home
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => (view.bills[0] ? go(`pay-${view.bills[0].request.id}`) : go(""))}
-              aria-current={screen.name === "pay" ? "page" : undefined}
-              className={cx("flex min-h-16 w-full flex-col items-center justify-center gap-0.5 text-[0.8rem] font-semibold", screen.name === "pay" ? "text-pine" : "text-stone")}
-            >
-              <Wallet className="h-6 w-6" aria-hidden /> {owed > 0 ? `Pay ${money(owed)}` : "Pay"}
-            </button>
-          </li>
-        </ul>
-      </nav>
     </div>
   );
 }
@@ -244,45 +234,61 @@ function HomeScreen({ view, where, go, send }: { view: NeighborView; where: "loc
         view.bills.map((b) => {
           const plan = b.line.plan;
           const nextInstallment = plan?.installments.find((i) => i.due >= new Date().toISOString().slice(0, 10)) ?? plan?.installments.at(-1);
+          const cap = view.captain;
           return (
             <Card key={b.request.id} className="overflow-hidden">
               <div className="p-5">
-                <p className="font-semibold text-stone">Your share of {b.request.title}</p>
-                <p className="tnum mt-1 font-display text-[2.6rem] font-black leading-none">{money(b.line.outstanding)}</p>
-                <p className="mt-2 text-stone">
+                {cap && <p className="text-stone">From {cap.name}, road captain</p>}
+                <h2 className="mt-1 text-[1.2rem] font-bold">Your share of {b.request.title}</h2>
+                <p className="tnum mt-2 font-display text-[2.8rem] font-black leading-none">{money(b.line.outstanding)}</p>
+                <p className="mt-2 text-[1.05rem]">
                   {b.line.paid > 0 ? `${money(b.line.paid)} paid of ${money(b.line.due)} · ` : ""}
                   {b.line.status === "late" ? <strong className="text-brick">Was due {fmtDate(b.request.dueDate)}</strong> : `Due ${fmtDate(b.request.dueDate)}`}
                 </p>
-                {b.approval && <p className="mt-2 text-[0.95rem] text-pine">{b.approval}</p>}
+                <p className="mt-2">{b.line.reason}</p>
+                {b.approval && <p className="mt-2 text-pine">{b.approval}</p>}
                 {plan && nextInstallment && (
-                  <p className="mt-2 rounded-lg bg-sign-50 px-3 py-2 text-[0.95rem]">
+                  <p className="mt-3 rounded-lg bg-sign-50 px-3 py-2">
                     You&apos;re on a payment plan. Next: {money(nextInstallment.amount)} by {fmtDate(nextInstallment.due)}.
                   </p>
                 )}
                 {b.line.processing > 0 && (
-                  <p className="mt-2 flex items-center gap-1.5 text-[0.95rem] text-lake">
-                    <Clock className="h-4 w-4" aria-hidden /> {money(b.line.processing)} is on its way
+                  <p className="mt-2 flex items-center gap-1.5 text-lake">
+                    <Clock className="h-5 w-5" aria-hidden /> {money(b.line.processing)} is on its way
                   </p>
                 )}
                 {b.checkMailed ? (
-                  <p className="mt-3 rounded-lg bg-pine-50 px-3 py-2 text-[0.98rem]">
-                    You said your check is in the mail ({fmtDate(b.checkMailed.at.slice(0, 10))}). It shows as paid when {view.captain?.name ?? "the captain"} gets it.
+                  <p className="mt-4 rounded-lg bg-pine-50 px-3 py-2.5">
+                    You said your check is in the mail ({fmtDate(b.checkMailed.at.slice(0, 10))}). It shows as paid when {cap?.name ?? "the captain"} gets it.
                   </p>
                 ) : (
-                  <Button size="lg" block className="mt-4" onClick={() => go(`pay-${b.request.id}`)}>
+                  <Button size="lg" block className="mt-5" onClick={() => go(`pay-${b.request.id}`)}>
                     Pay {money(plan && nextInstallment ? Math.min(nextInstallment.amount, b.line.outstanding) : b.line.outstanding)}
                   </Button>
                 )}
-                <button onClick={() => setWhy(why === b.request.id ? null : b.request.id)} className="mt-3 inline-flex w-full items-center justify-center gap-1 font-semibold text-pine" aria-expanded={why === b.request.id}>
-                  Why this amount? <ChevronDown className={cx("h-4 w-4 transition-transform", why === b.request.id && "rotate-180")} aria-hidden />
+                {!b.checkMailed && <p className="mt-2 text-center text-stone">By checking account, card or check</p>}
+                {cap?.phone && (
+                  <p className="mt-4 border-t border-line pt-3">
+                    Not sure this is real? Call {cap.name.split(" ")[0]} at{" "}
+                    <a href={`tel:${cap.phone}`} className="tnum font-semibold text-pine underline">
+                      {cap.phone}
+                    </a>{" "}
+                    before you pay.
+                  </p>
+                )}
+                <button
+                  onClick={() => setWhy(why === b.request.id ? null : b.request.id)}
+                  className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-1 font-semibold text-pine"
+                  aria-expanded={why === b.request.id}
+                >
+                  See how it was split <ChevronDown className={cx("h-5 w-5 transition-transform", why === b.request.id && "rotate-180")} aria-hidden />
                 </button>
               </div>
               {why === b.request.id && (
                 <div className="space-y-4 border-t border-line bg-paper p-5">
-                  <p>{b.line.reason}</p>
-                  <p className="text-[0.95rem] text-stone">{methodSentence(b.request.split)}</p>
+                  <p>{methodSentence(b.request.split)}</p>
                   {b.split.ok && b.split.stretches.length > 0 && (b.request.split.method === "segment" || b.request.split.method === "distance") && (
-                    <div className="rounded-xl bg-white p-3">
+                    <div className="rounded-lg bg-white p-3">
                       <RoadStrip
                         homes={b.split.lines.map((l) => ({ id: l.homeId, label: l.label, distanceFt: stretchEnd(b.split.stretches, l.homeId) }))}
                         stretches={b.split.stretches}
@@ -293,17 +299,17 @@ function HomeScreen({ view, where, go, send }: { view: NeighborView; where: "loc
                   )}
                   <div>
                     <p className="font-semibold">What the {money(b.request.total)} covers</p>
-                    <ul className="mt-1 divide-y divide-line rounded-xl border border-line bg-white">
+                    <ul className="mt-1 divide-y divide-line rounded-lg border border-line bg-white">
                       {b.budget.map((l) => (
-                        <li key={l.id} className="flex justify-between gap-3 px-3 py-2 text-[0.95rem]">
+                        <li key={l.id} className="flex justify-between gap-3 px-3 py-2">
                           <span>{l.label}</span>
                           <span className="tnum font-semibold">{money(l.amount)}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
-                  {b.request.message && <p className="rounded-xl bg-white p-3 text-[0.95rem]">From {view.captain?.name ?? "the captain"}: {b.request.message}</p>}
-                  <p className="text-[0.95rem] text-stone">
+                  {b.request.message && <p className="rounded-lg bg-white p-3">From {cap?.name ?? "the captain"}: {b.request.message}</p>}
+                  <p>
                     {b.progress.homesPaid} of {b.progress.homesBilled} homes have paid so far.
                     {b.progress.paidNames && ` Paid: ${b.progress.paidNames.join(", ")}.`}
                   </p>
@@ -318,7 +324,7 @@ function HomeScreen({ view, where, go, send }: { view: NeighborView; where: "loc
         .filter((v) => v.status === "open")
         .map((v) => (
           <Card key={v.vote.id} className="p-5">
-            <p className="text-[0.85rem] font-bold uppercase tracking-wide text-stone">Vote by {fmtDate(v.vote.deadline)}</p>
+            <p className="font-semibold text-stone">Vote by {fmtDate(v.vote.deadline)}</p>
             <p className="mt-1 text-[1.15rem] font-bold">{v.vote.question}</p>
             {v.vote.detail && <p className="mt-1 text-stone">{v.vote.detail}</p>}
             <div className="mt-4 grid grid-cols-3 gap-2">
@@ -501,7 +507,7 @@ function ThankYou({ view, payment, checking, go, onDone }: { view: NeighborView;
     return (
       <Card className="p-6 text-center">
         <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-pine" aria-hidden />
-        <p className="mt-3 text-[1.2rem] font-bold">Confirming your payment…</p>
+        <p className="mt-3 text-[1.2rem] font-bold">Checking on your payment…</p>
       </Card>
     );
   }
@@ -509,8 +515,8 @@ function ThankYou({ view, payment, checking, go, onDone }: { view: NeighborView;
     return (
       <Card className="p-6 text-center">
         <Clock className="mx-auto h-12 w-12 text-sign-ink" aria-hidden />
-        <p className="mt-3 text-[1.3rem] font-black">Payment received by Stripe</p>
-        <p className="mt-2 text-stone">It will show on your page in a few minutes. You don&apos;t need to pay again.</p>
+        <h2 className="mt-3 text-[1.4rem] font-black">We have your payment</h2>
+        <p className="mt-2">It will show on your page in a few minutes, with a receipt. You don&apos;t need to pay again.</p>
         <Button className="mt-5" block onClick={onDone}>
           Back to your page
         </Button>
@@ -518,36 +524,118 @@ function ThankYou({ view, payment, checking, go, onDone }: { view: NeighborView;
     );
   }
   return (
-    <Card className="p-6 text-center">
-      <CircleCheck className="mx-auto h-14 w-14 text-pine" aria-hidden />
-      <p className="mt-3 text-[1.5rem] font-black">Thank you</p>
-      <p className="tnum mt-1 text-[1.1rem]">
-        {money(payment.amount)} paid to {view.road.name}
-      </p>
-      <p className="mt-2 text-stone">
-        Receipt {payment.receiptNo}. {payment.method === "ach" ? `Bank payments take about 4 business days; it should clear by ${fmtDate(payment.clearsAt)}.` : "Card payments clear in about 2 business days."}
+    <PaidNotice
+      view={view}
+      payment={payment}
+      name={payment.payerName}
+      go={(h) => {
+        onDone();
+        go(h);
+      }}
+    />
+  );
+}
+
+/** The confirmation after paying online. Looks nothing like the pay form, so nobody wonders whether it went through. */
+function PaidNotice({ view, payment, name, go }: { view: NeighborView; payment: Payment; name: string; go: (h: string) => void }) {
+  const firstName = name.trim().split(/\s+/)[0] || (view.me.owners || "").split(/\s|&/)[0];
+  const cap = view.captain?.name.split(" ")[0];
+  const onItsWay = new Date(payment.clearsAt) > new Date();
+  return (
+    <section className="rounded-lg bg-pine p-6 text-white" aria-live="polite">
+      <CircleCheck className="h-12 w-12" aria-hidden />
+      <h2 className="mt-3 text-[1.7rem] font-black leading-tight">Paid. Thank you{firstName ? `, ${firstName}` : ""}.</h2>
+      <dl className="mt-4 space-y-1.5 text-[1.05rem]">
+        <div className="flex justify-between gap-4">
+          <dt>Amount</dt>
+          <dd className="tnum font-bold">{money(payment.amount)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Paid to</dt>
+          <dd className="text-right font-bold">{view.road.name}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Date</dt>
+          <dd className="font-bold">{fmtDate(payment.paidAt.slice(0, 10))}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Receipt</dt>
+          <dd className="font-bold">{payment.receiptNo}</dd>
+        </div>
+      </dl>
+      <p className="mt-4">
+        {onItsWay ? `On its way. It clears by ${fmtDate(payment.clearsAt)}. ` : ""}
+        {cap ? `${cap} has been told.` : ""}
         {view.me.email ? ` A receipt is on its way to ${view.me.email}.` : ""}
       </p>
       <div className="mt-5 grid gap-2">
-        <Button
-          onClick={() => {
-            onDone();
-            go(`receipt-${payment.id}`);
-          }}
-          variant="secondary"
-        >
-          View receipt
+        <Button variant="secondary" onClick={() => go(`receipt-${payment.id}`)} icon={<Printer className="h-5 w-5" aria-hidden />}>
+          Print or save the receipt
         </Button>
-        <Button
-          onClick={() => {
-            onDone();
-            go("");
-          }}
-        >
+        <Button variant="dark" onClick={() => go("")}>
           Back to your page
         </Button>
       </div>
-    </Card>
+    </section>
+  );
+}
+
+function printSlip() {
+  const root = document.documentElement;
+  root.setAttribute("data-print", "slip");
+  window.addEventListener("afterprint", () => root.removeAttribute("data-print"), { once: true });
+  window.print();
+}
+
+/** A slip to mail with a check. Hidden on screen; only it prints from "Print a slip". */
+function CheckSlip({ view, amount, title }: { view: NeighborView; amount: number; title: string }) {
+  const cap = view.captain;
+  return (
+    <div className="check-slip print-only text-black">
+      <p style={{ fontSize: "20pt", fontWeight: 800 }}>{view.road.name}</p>
+      <p style={{ marginTop: "4pt" }}>{title}: payment by check</p>
+      <table style={{ marginTop: "16pt", width: "100%", borderCollapse: "collapse", fontSize: "13pt" }}>
+        <tbody>
+          {[
+            ["Make the check out to", view.road.checkPayee],
+            ["Amount", money(amount)],
+            ["Write on the memo line", `${view.road.name}, ${view.me.label}`],
+            ["Mail or bring it to", cap ? `${cap.name}${cap.address ? `, ${cap.address}` : ""}` : "Your road captain"],
+            ...(cap?.phone ? [["Questions", `${cap.name}, ${cap.phone}`]] : []),
+          ].map(([k, v]) => (
+            <tr key={k} style={{ borderBottom: "1px solid #999" }}>
+              <td style={{ padding: "8pt 12pt 8pt 0", fontWeight: 700, width: "40%" }}>{k}</td>
+              <td style={{ padding: "8pt 0" }}>{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p style={{ marginTop: "28pt", borderTop: "2px dashed #666", paddingTop: "6pt", fontSize: "10pt" }}>Cut here and send this part with your check</p>
+      <table style={{ marginTop: "10pt", width: "100%", fontSize: "13pt" }}>
+        <tbody>
+          <tr>
+            <td style={{ padding: "4pt 0", fontWeight: 700 }}>From</td>
+            <td>
+              {view.me.owners || view.me.label} ({view.me.label})
+            </td>
+          </tr>
+          <tr>
+            <td style={{ padding: "4pt 0", fontWeight: 700 }}>For</td>
+            <td>
+              {view.road.name}: {title}
+            </td>
+          </tr>
+          <tr>
+            <td style={{ padding: "4pt 0", fontWeight: 700 }}>Amount</td>
+            <td>{money(amount)}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: "4pt 0", fontWeight: 700 }}>Road code</td>
+            <td>{view.road.code}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -560,8 +648,9 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
   const suggested = bill ? (plan && nextInstallment ? Math.min(nextInstallment.amount, bill.line.outstanding) : bill.line.outstanding) : 0;
   const [which, setWhich] = useState<"suggested" | "full" | "other">("suggested");
   const [other, setOther] = useState(0);
-  // Nothing is picked for them: bank, card and check are equal choices.
-  const [method, setMethod] = useState<"ach" | "card" | "check" | null>(null);
+  // Paying from a checking account costs the road the least, so it's listed first and picked to start.
+  const [method, setMethod] = useState<"ach" | "card" | "check">(view.road.accountConnected ? "ach" : "check");
+  const [payAnyway, setPayAnyway] = useState(false);
   const [checkSent, setCheckSent] = useState(false);
   const [name, setName] = useState(view.me.owners.split(" & ")[0] || "");
   const [agree, setAgree] = useState(false);
@@ -569,26 +658,7 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
   const [done, setDone] = useState<Payment | null>(null);
 
   // Checked first: paying in full removes the bill from the view.
-  if (done) {
-    return (
-      <Card className="p-6 text-center">
-        <CircleCheck className="mx-auto h-14 w-14 text-pine" aria-hidden />
-        <p className="mt-3 text-[1.5rem] font-black">Thank you, {name.split(" ")[0] || "neighbor"}</p>
-        <p className="tnum mt-1 text-[1.1rem]">
-          {money(done.amount)} paid to {view.road.name}
-        </p>
-        <p className="mt-2 text-stone">
-          Receipt {done.receiptNo}. {method === "ach" ? `Payments from a checking account take about 4 business days to arrive, so it should show as done by ${fmtDate(done.clearsAt)}.` : "Card payments arrive in about 2 business days."}
-        </p>
-        <div className="mt-5 grid gap-2">
-          <Button onClick={() => go(`receipt-${done.id}`)} variant="secondary">
-            View receipt
-          </Button>
-          <Button onClick={() => go("")}>Back to your page</Button>
-        </div>
-      </Card>
-    );
-  }
+  if (done) return <PaidNotice view={view} payment={done} name={name} go={go} />;
 
   if (!bill) {
     return (
@@ -607,7 +677,11 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
   const onlineMethod = method === "ach" || method === "card" ? method : null;
   const charge = computeCharge(amount, onlineMethod ?? "ach", view.road.settings.payerCoversFees);
   const clears = addBusinessDays(new Date().toISOString(), SETTLE_BUSINESS_DAYS[onlineMethod ?? "ach"]);
-  const feeFor = (m: "ach" | "card") => (view.road.settings.payerCoversFees ? computeCharge(amount, m, true).total - amount : 0);
+  const feeFor = (m: "ach" | "card") => computeCharge(amount, m, view.road.settings.payerCoversFees).total - amount;
+  const roadCost = (m: "ach" | "card") => {
+    const c = computeCharge(amount, m, view.road.settings.payerCoversFees);
+    return c.total - c.roadNet - feeFor(m);
+  };
   const cap = view.captain;
   const checkWhere = cap?.address ? `mail it or drop it off at ${cap.address}` : `give it to ${cap?.name ?? "the road captain"}`;
 
@@ -647,7 +721,7 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
     }
   };
 
-  if (checkSent || (bill.checkMailed && method === null)) {
+  if (checkSent || (bill.checkMailed && !payAnyway)) {
     return (
       <Card className="p-6 text-center">
         <Mail className="mx-auto h-12 w-12 text-pine" aria-hidden />
@@ -656,8 +730,14 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
           {cap?.name ?? "Your road captain"} will mark it paid when it arrives, and you&apos;ll see it here. You won&apos;t get reminders about this bill in the meantime.
         </p>
         <div className="mt-5 grid gap-2">
-          {!checkSent && (
-            <Button variant="secondary" onClick={() => setMethod("ach")}>
+          {!checkSent && online && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPayAnyway(true);
+                setMethod("ach");
+              }}
+            >
               Pay online instead
             </Button>
           )}
@@ -703,10 +783,10 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
       </Card>
 
       <Card className="p-5">
-        <p className="mb-3 text-[1.1rem] font-bold">How would you like to pay?</p>
+        <h2 className="mb-3 text-[1.15rem] font-bold">How would you like to pay?</h2>
         <Choice
           name="method"
-          value={method ?? ""}
+          value={method}
           onChange={(v) => setMethod(v as "ach" | "card" | "check")}
           options={[
             ...(online
@@ -714,12 +794,12 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
                   {
                     value: "ach" as const,
                     label: <span className="flex items-center gap-2"><Landmark className="h-5 w-5" aria-hidden /> From my checking account</span>,
-                    hint: `${feeFor("ach") ? `Fee ${money(feeFor("ach"))}` : "No fee to you"}. Arrives in about 4 business days.`,
+                    hint: `${feeFor("ach") ? `Fee ${money(feeFor("ach"))}` : "No fee to you"}. Comes out of your checking account once, like a check. Arrives in about 4 business days.`,
                   },
                   {
                     value: "card" as const,
                     label: <span className="flex items-center gap-2"><CreditCard className="h-5 w-5" aria-hidden /> Debit or credit card</span>,
-                    hint: `${feeFor("card") ? `Fee ${money(feeFor("card"))}` : "No fee to you"}. Arrives in about 2 business days.`,
+                    hint: `No fee to you. The road pays about ${money(roadCost("card"))} in card fees. Arrives in about 2 business days.`,
                   },
                 ]
               : []),
@@ -736,8 +816,8 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
       {method === "check" && (
         <Card className="p-5">
           <p className="text-[1.05rem]">
-            Make the check out to <strong>{view.road.name}</strong> for <strong className="tnum">{money(bill.line.outstanding)}</strong>, write &ldquo;{view.me.label}&rdquo; on
-            the memo line, and {checkWhere}.
+            Make the check out to <strong>{view.road.checkPayee}</strong> for <strong className="tnum">{money(bill.line.outstanding)}</strong>, write &ldquo;{view.road.name},{" "}
+            {view.me.label}&rdquo; on the memo line, and {checkWhere}.
           </p>
           {cap?.phone && (
             <p className="mt-2 text-stone">
@@ -748,23 +828,27 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
               .
             </p>
           )}
-          <Button size="lg" block className="mt-4" loading={paying} onClick={mailedCheck}>
+          <Button variant="secondary" block className="mt-4" icon={<Printer className="h-5 w-5" aria-hidden />} onClick={printSlip}>
+            Print a slip to send with it
+          </Button>
+          <Button size="lg" block className="mt-3" loading={paying} onClick={mailedCheck}>
             I mailed my check
           </Button>
-          <p className="mt-2 text-center text-[0.92rem] text-stone">This tells {cap?.name ?? "the captain"} it&apos;s on its way and stops reminders.</p>
+          <p className="mt-2 text-center text-stone">This tells {cap?.name ?? "the captain"} it&apos;s on its way and stops reminders.</p>
+          <CheckSlip view={view} amount={bill.line.outstanding} title={bill.request.title} />
         </Card>
       )}
 
       {onlineMethod && (
-        <Card className="p-5">
+        <Card className="border-2 border-field bg-paper-2/60 p-5">
           {live ? (
-            <p className="mb-4 rounded-xl bg-paper p-4 text-[0.95rem]">
+            <p className="mb-4">
               {onlineMethod === "ach"
-                ? "Next you'll choose your bank on Stripe's secure page and log in there, or type your account and routing numbers. Road Fund never sees your bank login."
-                : "Next you'll enter your card on Stripe's secure page."}
+                ? "Next you'll pick your bank on Stripe's secure page and sign in there to approve this one payment. Road Fund never sees your bank login. No online banking? Pay by check instead."
+                : "Next you'll enter your card on Stripe's secure page. Road Fund never sees your card number."}
             </p>
           ) : (
-            <div className="mb-4 rounded-xl bg-paper p-4">
+            <div className="mb-4 rounded-lg bg-white p-4">
               {onlineMethod === "ach" ? (
                 <div className="space-y-1 text-[0.95rem]">
                   <p className="font-semibold">Test bank account ••6789</p>
@@ -809,8 +893,9 @@ function PayScreen({ view, requestId, go, send, live, roadId, token }: { view: N
           <Button size="lg" block className="mt-4" loading={paying} disabled={amount < 100 || (!live && (!name.trim() || (onlineMethod === "ach" && !agree)))} onClick={pay}>
             {live ? `Continue to pay ${money(charge.total)}` : `Pay ${money(charge.total)}`}
           </Button>
-          <p className="mt-3 flex items-center justify-center gap-2 text-center text-[0.9rem] text-stone">
-            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden /> Payments handled by Stripe. We never see your card number or bank login.
+          <p className="mt-4 flex gap-2 text-stone">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden /> Payments go through Stripe, the payment company. Road Fund will never text or email you asking
+            for a card number, bank password or Social Security number.
           </p>
         </Card>
       )}
@@ -824,7 +909,7 @@ function ReceiptScreen({ view, id }: { view: NeighborView; id: string }) {
   const how = { ach: "Bank transfer", card: "Card", check: "Check", cash: "Cash" }[p.method];
   return (
     <Card className="p-6">
-      <p className="text-[0.85rem] font-bold uppercase tracking-wide text-stone">Receipt {p.receiptNo}</p>
+      <h2 className="text-[1.15rem] font-bold">Receipt {p.receiptNo}</h2>
       <p className="tnum mt-1 font-display text-[2.2rem] font-black">{money(p.amount)}</p>
       <dl className="mt-4 divide-y divide-line">
         {[
@@ -842,8 +927,8 @@ function ReceiptScreen({ view, id }: { view: NeighborView; id: string }) {
           </div>
         ))}
       </dl>
-      <Button variant="secondary" className="mt-5" icon={<Printer className="h-5 w-5" aria-hidden />} onClick={() => window.print()}>
-        Print
+      <Button variant="secondary" className="no-print mt-5" icon={<Printer className="h-5 w-5" aria-hidden />} onClick={() => window.print()}>
+        Print or save as PDF
       </Button>
     </Card>
   );

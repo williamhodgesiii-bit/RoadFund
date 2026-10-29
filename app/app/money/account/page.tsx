@@ -12,7 +12,7 @@ import { useRoad } from "@/lib/client/road-context";
 import { fmtDate, isoDate } from "@/lib/dates";
 import { computeCharge } from "@/lib/fees";
 import { money } from "@/lib/money";
-import { accountSummary } from "@/lib/selectors";
+import { accountSummary, captainHome, displayName } from "@/lib/selectors";
 
 export default function AccountPage() {
   const { road, dispatch, now, live } = useRoad();
@@ -22,6 +22,7 @@ export default function AccountPage() {
   const [setAside, setSetAside] = useState(road.reserve.setAside);
   const [connecting, setConnecting] = useState(false);
   const sample = computeCharge(30_000, "ach", road.settings.payerCoversFees);
+  const cardSample = computeCharge(30_000, "card", road.settings.payerCoversFees);
 
   return (
     <>
@@ -84,16 +85,22 @@ export default function AccountPage() {
           <div className="space-y-5 p-5">
             <Toggle
               checked={road.settings.payerCoversFees}
-              onChange={(v) => dispatch({ type: "road.settings", patch: { payerCoversFees: v } }, v ? "Neighbors now cover fees." : "The road now covers fees.")}
-              label="Neighbors cover the fees"
-              hint={road.settings.payerCoversFees ? "The road gets every share in full." : "Neighbors pay exactly their share, and the road pays the fee."}
+              onChange={(v) => dispatch({ type: "road.settings", patch: { payerCoversFees: v } }, v ? "Neighbors now cover the bank fee." : "The road now covers the bank fee.")}
+              label="Neighbors cover the bank fee"
+              hint={road.settings.payerCoversFees ? "Payments from a checking account reach the road in full." : "Neighbors pay exactly their share, and the road pays the fee."}
             />
             <p className="rounded-xl bg-paper p-3 text-[0.95rem]">
               On a $300 share paid from a checking account: the neighbor pays <strong className="tnum">{money(sample.total)}</strong> and the road gets{" "}
               <strong className="tnum">{money(sample.roadNet)}</strong>. Checks and cash are always free.
             </p>
+            <p className="text-[0.95rem] text-stone">
+              Card fees always come out of the road&apos;s side, about {money(cardSample.platformFee + cardSample.processingFee)} on a $300 share. Card rules don&apos;t allow adding a
+              fee to debit cards, and some states limit it for credit cards, so Road Fund never adds it to a neighbor&apos;s bill.
+            </p>
           </div>
         </Card>
+
+        <CheckPayeeCard />
 
         <Card>
           <CardHeader title="Starting balance" sub="Money the road already had before Road Fund, so the payment record matches the bank." />
@@ -207,14 +214,42 @@ function StripeAccount() {
         Connect the bank account road money goes into: the road&apos;s own account if it has one, or yours if it doesn&apos;t. Stripe, the payment company behind many online
         stores, moves the money. Every dollar shows on the record neighbors can see.
       </p>
-      <ul className="list-disc space-y-1 pl-6 text-[0.95rem]">
-        <li>Takes about 10 minutes.</li>
-        <li>Have the road&apos;s bank account and routing number ready.</li>
-        <li>Stripe asks for the road&apos;s tax ID (EIN) if it has one, or your own details if it doesn&apos;t. That&apos;s normal for most roads.</li>
+      <ul className="list-disc space-y-1 pl-6">
+        <li>Takes about 10 minutes on Stripe&apos;s site.</li>
+        <li>Have the bank account and routing number ready. They&apos;re printed along the bottom of a check.</li>
+        <li>Stripe asks for the road&apos;s tax ID (EIN) if it has one. Most roads don&apos;t, and that&apos;s fine: Stripe asks for yours instead.</li>
       </ul>
+      <div className="rounded-lg bg-paper p-4">
+        <p className="font-semibold">Why Stripe asks for your birth date and Social Security number</p>
+        <p className="mt-1">
+          Federal rules require payment companies to confirm who receives money online, the same check a bank does when you open an account. Stripe asks for your name,
+          home address, date of birth and the last 4 digits of your Social Security number. Road Fund never sees any of it, and
+          neighbors never see it either.
+        </p>
+      </div>
       <Button block loading={busy === "connect"} icon={<ShieldCheck className="h-5 w-5" aria-hidden />} onClick={() => go("connect")}>
         Connect with Stripe
       </Button>
     </>
+  );
+}
+
+function CheckPayeeCard() {
+  const { road, dispatch } = useRoad();
+  const cap = captainHome(road);
+  const fallback = cap ? displayName(cap) : road.name;
+  const [payee, setPayee] = useState(road.settings.checkPayee ?? "");
+  return (
+    <Card>
+      <CardHeader title="Checks" sub="Neighbors who pay by check see this on their page and on the slip they can print." />
+      <div className="space-y-4 p-5">
+        <Field label="Make checks out to" htmlFor="acct-payee" hint={`The name on the bank account checks go into. Leave it blank to use ${fallback}.`}>
+          <Input id="acct-payee" value={payee} placeholder={fallback} onChange={(e) => setPayee(e.target.value)} />
+        </Field>
+        <Button variant="secondary" onClick={() => dispatch({ type: "road.settings", patch: { checkPayee: payee.trim() } }, "Saved.")}>
+          Save
+        </Button>
+      </div>
+    </Card>
   );
 }

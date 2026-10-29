@@ -8,7 +8,7 @@ Dues, records and closing letters for private roads with 3 to 30 homes. Built fr
 
 ## What it does, and for whom
 
-Built around what private-road neighbors actually struggle with (see `docs/strategy.md`): a neighbor who won't pay, nothing in writing, one person fronting the money, and a house sale that needs proof the road is kept up.
+Built around what private-road neighbors actually struggle with (see `docs/strategy.md`; the design choices are in `docs/design-research.md`): a neighbor who won't pay, nothing in writing, one person fronting the money, and a house sale that needs proof the road is kept up.
 
 | | Free | Road Fund ($79/yr up to 8 homes, $149/yr for 9 to 30) |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Built around what private-road neighbors actually struggle with (see `docs/strat
 | Agreement | Drafted from the road's data, signed from each owner's phone | Same |
 | Contractors, votes, work log, documents | | Included |
 
-Road Status Letters cost the requester $150 (one free update within 30 days); the road is never charged. Optional agreement help is $249 plus outside fees at cost. Online payments carry a $1 fee plus the bank or card charge; checks are free.
+Road Status Letters cost the requester $150 (one free update within 30 days); the road is never charged. Optional agreement help is $249 plus outside fees at cost. Online payments carry a $1 fee plus the bank or card charge; checks are free. A road can pass the checking-account fee to neighbors, but card fees always come out of the road's side: card rules forbid surcharging debit cards and several states restrict surcharges. New roads start with the road covering every fee.
 
 ## Deploy on Vercel
 
@@ -33,6 +33,7 @@ Road Status Letters cost the requester $150 (one free update within 30 days); th
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` | Receipts, captain alerts for payments and letter requests, letters emailed to title companies, captain sign-in links, and sending notices from the send sheet. |
 | Texts | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` or `TWILIO_MESSAGING_SERVICE_SID` | Texts to neighbors who opted in from their own page, a confirmation text when they do, STOP/START handled at `/api/sms/inbound`. |
 | Daily job | `CRON_SECRET` | `vercel.json` runs `/api/cron/daily` each morning: reminders 3 days before and 7 and 21 days after the due date to homes that still owe (skipping homes on a payment plan or with a check in the mail), and nudges for letter requests waiting more than 2 days. Each send is recorded so a retry never repeats it. |
+| Who runs Road Fund | `NEXT_PUBLIC_SUPPORT_PHONE`, `NEXT_PUBLIC_SUPPORT_HOURS`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_COMPANY_LEGAL_NAME`, `NEXT_PUBLIC_COMPANY_TOWN`, `NEXT_PUBLIC_COMPANY_ADDRESS`, `NEXT_PUBLIC_FOUNDER_NAME`, `NEXT_PUBLIC_FOUNDER_NOTE`, `NEXT_PUBLIC_FOUNDER_PHOTO` | Your real details on the About page, in the footer, and (phone) in the header. Anything left blank is left off; nothing is filled in for you. |
 | Bill reading | `ANTHROPIC_API_KEY` | Fills in a contractor's bill from a photo, and answers neighbors' questions from the agreement's own text. Both work without it, just by hand. |
 
 `/api/status` reports what is on, and Settings in the app shows it. The demo road always stays simulated, even with Stripe on.
